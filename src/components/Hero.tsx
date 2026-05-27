@@ -56,8 +56,8 @@ export default function Hero() {
             </div>
           </div>
 
-          {/* HeroStage hidden on mobile/tablet — purely decorative. */}
-          <div className="hidden lg:block">
+          {/* HeroStage — now visible on all sizes (scaled down for mobile/tablet). */}
+          <div className="mt-2 lg:mt-0">
             <HeroStage />
           </div>
         </div>
@@ -69,9 +69,8 @@ export default function Hero() {
 function HeroStage() {
   return (
     <div
-      className="relative overflow-hidden rounded-[42px] shadow-deep"
+      className="relative overflow-hidden rounded-[28px] sm:rounded-[36px] lg:rounded-[42px] shadow-deep min-h-[420px] sm:min-h-[520px] lg:min-h-[620px]"
       style={{
-        minHeight: 620,
         border: "1px solid rgba(0,216,242,0.23)",
         background:
           "radial-gradient(circle at 84% 18%, rgba(0,216,242,0.22), transparent 34%), linear-gradient(145deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
@@ -79,18 +78,23 @@ function HeroStage() {
       aria-label="Microflex product family preview"
     >
       <div
-        className="absolute rounded-[32px] overflow-hidden"
+        className="absolute inset-[14px] sm:inset-[20px] lg:inset-[28px] rounded-[20px] sm:rounded-[26px] lg:rounded-[32px] overflow-hidden"
         style={{
-          inset: 28,
           border: "1px solid rgba(255,255,255,0.08)",
           background:
             "radial-gradient(circle at 70% 20%, rgba(0,216,242,0.19), transparent 29%), linear-gradient(180deg, #081929 0%, #020509 92%)",
         }}
       >
         {/* Logo plate */}
-        <div className="absolute left-[34px] right-[34px] top-[34px] z-10 flex items-start justify-between gap-5">
+        <div className="absolute left-[18px] right-[18px] top-[18px] sm:left-[26px] sm:right-[26px] sm:top-[26px] lg:left-[34px] lg:right-[34px] lg:top-[34px] z-10 flex items-start justify-between gap-5">
           <div className="flex-1">
-            <Logo size="xl" variant="light" href={null} priority />
+            {/* Mobile: smaller logo so it never overflows the inner box */}
+            <div className="lg:hidden">
+              <Logo size="md" variant="light" href={null} priority />
+            </div>
+            <div className="hidden lg:block">
+              <Logo size="xl" variant="light" href={null} priority />
+            </div>
           </div>
           <div
             className="hidden w-[168px] rounded-[22px] p-4 text-xs leading-snug text-muted backdrop-blur-md xl:block"
@@ -113,20 +117,4 @@ function HeroStage() {
 
 function ProductFamily() {
   return (
-    <div className="absolute inset-x-0 bottom-0 top-[200px] flex items-end justify-center">
-      <div className="relative h-full w-full">
-        <Image
-          src="/images/items.png"
-          alt="Microflex Film Corporation product family — printed film rollstock, pouches, sachets, stick packs, bottles, jars, labels, display boxes, and shipping cases"
-          fill
-          sizes="(min-width: 1024px) 50vw, 90vw"
-          style={{
-            objectFit: "contain",
-            objectPosition: "bottom center",
-          }}
-          priority
-        />
-      </div>
-    </div>
-  );
-}
+    <div className="absolute inset-x-0 bottom-0 top-[90px] sm:top-[140px] lg:top-[200px] flex items-end
