@@ -32,18 +32,17 @@ export default function Logo({
   const h = heightMap[size];
   const w = Math.round(h * ASPECT);
 
-  // Single master file (white wordmark + cyan splash on transparent bg).
-  // For dark backgrounds (Header/Hero/Footer) → display as-is.
-  // For light backgrounds (Showcase section) → invert via CSS filter so wordmark
-  //   becomes near-black while keeping the cyan splash close to its original hue.
-  const filter =
-    variant === "dark"
-      ? "invert(1) hue-rotate(180deg) saturate(1.1)"
-      : "none";
+  // Real master files for both variants:
+  //   light = WHITE wordmark + cyan splash → for dark backgrounds (Header / Hero / Footer)
+  //   dark  = BLACK wordmark + cyan splash → for light backgrounds (Showcase section)
+  const src =
+    variant === "light"
+      ? "/images/microflex-logo-white.png"
+      : "/images/microflex-logo.png";
 
   const content = (
     <Image
-      src="/images/microflex-logo-white.png"
+      src={src}
       alt="Microflex Film Corporation"
       width={w}
       height={h}
@@ -53,7 +52,6 @@ export default function Logo({
         width: "auto",
         height: h,
         display: "block",
-        filter,
       }}
     />
   );
