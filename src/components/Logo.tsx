@@ -4,7 +4,7 @@ import Link from "next/link";
 type Size = "sm" | "md" | "lg" | "xl" | "2xl";
 type Variant = "light" | "dark";
 
-// Heights (in px) at each size. Width derived from logo aspect ratio (≈2.93:1).
+// Heights (in px) at each size. Width derived from logo aspect ratio.
 const heightMap: Record<Size, number> = {
   sm: 36,
   md: 48,
@@ -13,7 +13,8 @@ const heightMap: Record<Size, number> = {
   "2xl": 140,
 };
 
-const ASPECT = 1600 / 546; // ≈ 2.93
+// Master logo natural aspect ratio (8549 × 2500 = 3.42).
+const ASPECT = 8549 / 2500;
 
 export default function Logo({
   size = "md",
@@ -31,16 +32,18 @@ export default function Logo({
   const h = heightMap[size];
   const w = Math.round(h * ASPECT);
 
-  // "light" variant = WHITE wordmark for use on dark backgrounds (Header/Hero/Footer).
-  // "dark" variant  = original BLACK wordmark for use on light backgrounds (Showcase).
-  const src =
-    variant === "light"
-      ? "/images/microflex-logo-white.png"
-      : "/images/microflex-logo.png";
+  // Single master file (white wordmark + cyan splash on transparent bg).
+  // For dark backgrounds (Header/Hero/Footer) → display as-is.
+  // For light backgrounds (Showcase section) → invert via CSS filter so wordmark
+  //   becomes near-black while keeping the cyan splash close to its original hue.
+  const filter =
+    variant === "dark"
+      ? "invert(1) hue-rotate(180deg) saturate(1.1)"
+      : "none";
 
   const content = (
     <Image
-      src={src}
+      src="/images/microflex-logo-white.png"
       alt="Microflex Film Corporation"
       width={w}
       height={h}
@@ -50,6 +53,7 @@ export default function Logo({
         width: "auto",
         height: h,
         display: "block",
+        filter,
       }}
     />
   );
