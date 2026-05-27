@@ -1,3 +1,5 @@
+import Logo from "./Logo";
+
 export default function Footer() {
   return (
     <footer
@@ -9,14 +11,8 @@ export default function Footer() {
     >
       <div className="container-x">
         <div className="grid gap-8 md:grid-cols-3">
-          <div className="leading-none">
-            <strong className="display block text-[30px] text-paper">Microflex</strong>
-            <span
-              className="mt-2 block text-[10px] font-bold uppercase text-cyan"
-              style={{ letterSpacing: "0.48em" }}
-            >
-              Film Corporation
-            </span>
+          <div>
+            <Logo size="md" variant="light" href={null} />
           </div>
 
           <div className="text-muted">

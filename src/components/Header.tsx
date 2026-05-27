@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Logo from "./Logo";
 
 const primaryNav = [
   { href: "#capabilities", label: "Capabilities" },
@@ -25,15 +25,19 @@ export default function Header() {
           borderColor: "rgba(0,216,242,0.14)",
         }}
       >
-        <div className="container-x flex min-h-[82px] items-center justify-between gap-8">
-          <Link href="#top" aria-label="Microflex Film Corporation home" className="inline-flex flex-col leading-none">
-            <strong className="display text-[30px] text-paper">Microflex</strong>
-            <span className="mt-2 text-[10px] font-bold uppercase text-cyan" style={{ letterSpacing: "0.48em" }}>
-              Film Corporation
-            </span>
-          </Link>
+        <div className="container-x flex min-h-[68px] items-center justify-between gap-4 md:min-h-[88px] md:gap-8">
+          {/* Real Microflex logo — scales sm → md across breakpoints */}
+          <div className="block md:hidden">
+            <Logo size="sm" variant="light" />
+          </div>
+          <div className="hidden md:block">
+            <Logo size="md" variant="light" />
+          </div>
 
-          <nav className="hidden items-center gap-6 text-sm font-bold text-muted lg:flex" aria-label="Primary">
+          <nav
+            className="hidden items-center gap-6 text-sm font-bold text-muted lg:flex"
+            aria-label="Primary"
+          >
             {primaryNav.map((item) => (
               <a key={item.href} href={item.href} className="transition hover:text-cyan">
                 {item.label}
@@ -50,7 +54,11 @@ export default function Header() {
             </a>
           </div>
 
-          <a href="#quote-form" className="btn btn-primary md:hidden text-xs">
+          <a
+            href="#quote-form"
+            className="btn btn-primary px-4 text-xs md:hidden"
+            style={{ minHeight: 40 }}
+          >
             Start
           </a>
         </div>

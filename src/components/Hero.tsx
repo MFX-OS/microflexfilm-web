@@ -1,24 +1,26 @@
+import Logo from "./Logo";
+
 export default function Hero() {
   return (
-    <section className="hero relative isolate grid-backdrop py-20 md:py-24">
+    <section className="hero relative isolate grid-backdrop py-14 md:py-20 lg:py-24">
       <div className="container-x">
-        <div className="grid items-center gap-14 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="grid items-center gap-10 lg:gap-14 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
             <div className="kicker mb-3">
               Flexible Packaging • Labels • Pouches • Printed Film
             </div>
-            <h1 className="display text-[clamp(48px,7vw,96px)] text-paper">
+            <h1 className="display text-[clamp(40px,9vw,96px)] text-paper">
               Flexible Packaging.
               <br />
               <span className="text-cyan">Engineered to Perform.</span>
             </h1>
-            <p className="mt-7 max-w-[690px] text-lg leading-relaxed text-muted md:text-xl">
+            <p className="mt-6 max-w-[690px] text-base leading-relaxed text-muted md:mt-7 md:text-lg lg:text-xl">
               Microflex helps brands produce printed film, pouches, labels, shrink sleeves,
               sachets, stick packs, and custom flexible packaging with disciplined production,
               artwork control, and quality-focused execution.
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap md:mt-8">
               <a href="#quote-form" className="btn btn-primary">
                 Start a Project
               </a>
@@ -53,7 +55,10 @@ export default function Hero() {
             </div>
           </div>
 
-          <HeroStage />
+          {/* HeroStage hidden on mobile/tablet — purely decorative. */}
+          <div className="hidden lg:block">
+            <HeroStage />
+          </div>
         </div>
       </div>
     </section>
@@ -82,19 +87,11 @@ function HeroStage() {
         }}
       >
         <div className="absolute left-[34px] right-[34px] top-[34px] z-10 flex items-start justify-between gap-5">
-          <div className="flex-1 border-b-[3px] border-cyan pb-5">
-            <strong className="display block text-[clamp(46px,4.8vw,70px)] text-paper">
-              Microflex
-            </strong>
-            <span
-              className="mt-4 block text-[11px] uppercase text-cyan"
-              style={{ letterSpacing: "0.55em" }}
-            >
-              Film Corporation
-            </span>
+          <div className="flex-1">
+            <Logo size="xl" variant="light" href={null} priority />
           </div>
           <div
-            className="hidden w-[168px] rounded-[22px] p-4 text-xs leading-snug text-muted backdrop-blur-md sm:block"
+            className="hidden w-[168px] rounded-[22px] p-4 text-xs leading-snug text-muted backdrop-blur-md xl:block"
             style={{
               border: "1px solid rgba(0,216,242,0.28)",
               background: "rgba(2,5,9,0.62)",
