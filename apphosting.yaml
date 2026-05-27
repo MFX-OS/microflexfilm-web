@@ -1,7 +1,6 @@
 # Firebase App Hosting backend configuration for microflexfilm.com
 # Reference: https://firebase.google.com/docs/app-hosting/configure
 runConfig:
-  # Cloud Run instance settings for the rendered Next.js app
   minInstances: 0
   maxInstances: 3
   concurrency: 80
@@ -9,16 +8,34 @@ runConfig:
   memoryMiB: 512
 
 env:
-  # Public, non-secret values available at build + runtime
   - variable: FIREBASE_PROJECT_ID
     value: mfx-2026
     availability:
       - BUILD
       - RUNTIME
 
-  # Example secret pattern — uncomment and bind once you've stored it in
-  # Google Secret Manager via:  firebase apphosting:secrets:set INQUIRY_NOTIFY_EMAIL
-  # - variable: INQUIRY_NOTIFY_EMAIL
-  #   secret: INQUIRY_NOTIFY_EMAIL
-  #   availability:
-  #     - RUNTIME
+  # Resend API key for inquiry notification emails.
+  # Set this once via:
+  #   firebase apphosting:secrets:set RESEND_API_KEY
+  #   (paste the re_... key from https://resend.com/api-keys)
+  - variable: RESEND_API_KEY
+    secret: RESEND_API_KEY
+    availability:
+      - RUNTIME
+
+  # Where inquiry emails are sent (comma-separated).
+  # Default in code = randy@microflexfilm.com,info@microflexfilm.com — but
+  # this env var overrides if set. Useful if you want to change recipients
+  # without redeploying code.
+  - variable: INQUIRY_NOTIFY_EMAIL
+    value: randy@microflexfilm.com,info@microflexfilm.com
+    availability:
+      - RUNTIME
+
+  # The "From" address shown on inquiry emails.
+  # Defaults to onboarding@resend.dev until you verify microflexfilm.com in Resend.
+  # Once verified, set to: inquiries@microflexfilm.com
+  - variable: INQUIRY_FROM_EMAIL
+    value: "Microflex Inquiries <onboarding@resend.dev>"
+    availability:
+      - RUNTIME

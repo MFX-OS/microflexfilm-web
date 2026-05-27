@@ -14,10 +14,6 @@ export default function QuoteForm() {
               Submit project information and the Microflex team will route your request to the
               right group for review.
             </p>
-            <p className="mt-3 text-xs text-muted-dark">
-              Inquiries are written to Firestore on the <code className="font-mono">mfx-2026</code> project via a Next.js
-              Server Action — readable in the Firebase Console under <code className="font-mono">inquiries</code>.
-            </p>
           </div>
 
           <div

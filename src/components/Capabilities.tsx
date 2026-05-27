@@ -69,18 +69,12 @@ export default function Capabilities() {
             </article>
           ))}
         </div>
-
-        <p className="mt-6 text-xs text-muted-dark">
-          Visuals are placeholders — drop real product photography into <code className="font-mono">/public/images/</code> and update the
-          <code className="font-mono"> CapVisual</code> component to render them.
-        </p>
       </div>
     </section>
   );
 }
 
 function CapVisual({ kind }: { kind: string }) {
-  // Stylized placeholder mock-ups — light frame, dark "product" silhouette.
   return (
     <div
       className="-mx-2 mb-5 flex h-[200px] items-center justify-center overflow-hidden rounded-2xl"
