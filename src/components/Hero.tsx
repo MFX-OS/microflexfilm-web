@@ -117,4 +117,20 @@ function HeroStage() {
 
 function ProductFamily() {
   return (
-    <div className="absolute inset-x-0 bottom-0 top-[90px] sm:top-[140px] lg:top-[200px] flex items-end
+    <div className="absolute inset-x-0 bottom-0 top-[90px] sm:top-[140px] lg:top-[200px] flex items-end justify-center">
+      <div className="relative h-full w-full">
+        <Image
+          src="/images/items.png"
+          alt="Microflex Film Corporation product family — printed film rollstock, pouches, sachets, stick packs, bottles, jars, labels, display boxes, and shipping cases"
+          fill
+          sizes="(min-width: 1024px) 50vw, 100vw"
+          style={{
+            objectFit: "contain",
+            objectPosition: "bottom center",
+          }}
+          priority
+        />
+      </div>
+    </div>
+  );
+}
