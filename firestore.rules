@@ -1,0 +1,19 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Public marketing site writes inquiries through a server action that uses
+    // Firebase Admin SDK (which bypasses these rules). No client-side write
+    // access is granted to the `inquiries` collection — keep this locked down.
+    match /inquiries/{doc} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // Default deny everything else.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

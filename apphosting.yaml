@@ -1,0 +1,24 @@
+# Firebase App Hosting backend configuration for microflexfilm.com
+# Reference: https://firebase.google.com/docs/app-hosting/configure
+runConfig:
+  # Cloud Run instance settings for the rendered Next.js app
+  minInstances: 0
+  maxInstances: 3
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  # Public, non-secret values available at build + runtime
+  - variable: FIREBASE_PROJECT_ID
+    value: mfx-2026
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # Example secret pattern — uncomment and bind once you've stored it in
+  # Google Secret Manager via:  firebase apphosting:secrets:set INQUIRY_NOTIFY_EMAIL
+  # - variable: INQUIRY_NOTIFY_EMAIL
+  #   secret: INQUIRY_NOTIFY_EMAIL
+  #   availability:
+  #     - RUNTIME
