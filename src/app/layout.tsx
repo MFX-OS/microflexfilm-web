@@ -34,6 +34,15 @@ export const metadata: Metadata = {
     "Microflex Film Corporation",
     "Riverside packaging",
   ],
+  icons: {
+    icon: [
+      { url: "/images/microflex-mark.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/images/microflex-mark.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: "/images/microflex-mark.png",
+  },
   openGraph: {
     title: "Microflex Film Corporation — Flexible Packaging. Engineered to Perform.",
     description:
@@ -41,11 +50,20 @@ export const metadata: Metadata = {
     url: "https://microflexfilm.com",
     siteName: "Microflex Film Corporation",
     type: "website",
+    images: [
+      {
+        url: "/images/microflex-logo-white.png",
+        width: 8549,
+        height: 2500,
+        alt: "Microflex Film Corporation — Flexible Packaging. Engineered to Perform.",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Microflex Film Corporation",
     description: "Flexible Packaging. Engineered to Perform.",
+    images: ["/images/microflex-logo-white.png"],
   },
 };
 
