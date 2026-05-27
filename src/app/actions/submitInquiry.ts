@@ -2,16 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { FieldValue } from "firebase-admin/firestore";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { adminDb } from "@/lib/firebase-admin";
 
-// Where inquiry notifications go (comma-separated supported via env override).
 const DEFAULT_RECIPIENTS = ["randy@microflexfilm.com", "info@microflexfilm.com"];
-
-// From address — must be on a verified Resend domain. Defaults to onboarding sender
-// (works immediately, sender shows as "Resend <onboarding@resend.dev>"). Once you
-// verify microflexfilm.com in Resend, set INQUIRY_FROM_EMAIL=inquiries@microflexfilm.com.
-const DEFAULT_FROM = "Microflex Inquiries <onboarding@resend.dev>";
+const DEFAULT_FROM_NAME = "Microflex Inquiries";
 
 export async function submitInquiry(formData: FormData) {
   const payload = {
@@ -43,10 +38,8 @@ export async function submitInquiry(formData: FormData) {
     redirect("/contact-error?reason=server");
   }
 
-  // 2. Send email notification (best effort — Firestore write is the source of truth)
+  // 2. Send email via Gmail SMTP (best effort)
   await sendInquiryEmail(payload).catch((err) => {
-    // Don't fail the user submission if email fails — they already saw success.
-    // Inquiry is safely in Firestore; we can re-send notifications from there.
     console.error("Inquiry email failed to send:", err);
   });
 
@@ -64,9 +57,11 @@ async function sendInquiryEmail(payload: {
   quantity: string;
   message: string;
 }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.warn("RESEND_API_KEY not set — skipping email notification.");
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPassword = process.env.SMTP_PASSWORD;
+
+  if (!smtpUser || !smtpPassword) {
+    console.warn("SMTP_USER or SMTP_PASSWORD not set — skipping email notification.");
     return;
   }
 
@@ -75,8 +70,19 @@ async function sendInquiryEmail(payload: {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const from = process.env.INQUIRY_FROM_EMAIL ?? DEFAULT_FROM;
-  const resend = new Resend(apiKey);
+  const fromName = process.env.INQUIRY_FROM_NAME ?? DEFAULT_FROM_NAME;
+  const from = `"${fromName}" <${smtpUser}>`;
+
+  // Gmail SMTP via Google Workspace App Password
+  const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: {
+      user: smtpUser,
+      pass: smtpPassword,
+    },
+  });
 
   const subject = `New inquiry — ${payload.company} (${payload.requestType || "no type"})`;
 
@@ -130,13 +136,13 @@ async function sendInquiryEmail(payload: {
     </div>
   `;
 
-  await resend.emails.send({
+  await transporter.sendMail({
     from,
-    to: recipients,
+    to: recipients.join(", "),
     subject,
     text,
     html,
-    replyTo: payload.email ? `${payload.name} <${payload.email}>` : undefined,
+    replyTo: payload.email ? `"${payload.name}" <${payload.email}>` : undefined,
   });
 }
 

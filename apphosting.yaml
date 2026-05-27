@@ -1,5 +1,4 @@
 # Firebase App Hosting backend configuration for microflexfilm.com
-# Reference: https://firebase.google.com/docs/app-hosting/configure
 runConfig:
   minInstances: 0
   maxInstances: 3
@@ -14,28 +13,29 @@ env:
       - BUILD
       - RUNTIME
 
-  # Resend API key for inquiry notification emails.
-  # Set this once via:
-  #   firebase apphosting:secrets:set RESEND_API_KEY
-  #   (paste the re_... key from https://resend.com/api-keys)
-  - variable: RESEND_API_KEY
-    secret: RESEND_API_KEY
+  # Gmail SMTP — Google Workspace account that owns the App Password
+  # and appears as the sender on inquiry notifications.
+  - variable: SMTP_USER
+    value: flex@microflexfilm.com
+    availability:
+      - RUNTIME
+
+  # Google Workspace App Password for flex@microflexfilm.com (16 chars, no spaces).
+  # Generate at https://myaccount.google.com/apppasswords while signed in as flex@
+  # Set via:  firebase apphosting:secrets:set SMTP_PASSWORD
+  - variable: SMTP_PASSWORD
+    secret: SMTP_PASSWORD
     availability:
       - RUNTIME
 
   # Where inquiry emails are sent (comma-separated).
-  # Default in code = randy@microflexfilm.com,info@microflexfilm.com — but
-  # this env var overrides if set. Useful if you want to change recipients
-  # without redeploying code.
   - variable: INQUIRY_NOTIFY_EMAIL
     value: randy@microflexfilm.com,info@microflexfilm.com
     availability:
       - RUNTIME
 
-  # The "From" address shown on inquiry emails.
-  # Defaults to onboarding@resend.dev until you verify microflexfilm.com in Resend.
-  # Once verified, set to: inquiries@microflexfilm.com
-  - variable: INQUIRY_FROM_EMAIL
-    value: "Microflex Inquiries <onboarding@resend.dev>"
+  # Display name on the From header.
+  - variable: INQUIRY_FROM_NAME
+    value: "Microflex Inquiries"
     availability:
       - RUNTIME
