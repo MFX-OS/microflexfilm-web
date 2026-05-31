@@ -13,7 +13,7 @@ export default function Footer() {
       <div className="container-x">
         <div className="grid gap-8 md:grid-cols-3">
           <div>
-            <Logo size="md" variant="light" href={null} />
+            <Logo size="md" variant="light" />
           </div>
 
           <div className="text-muted">
@@ -42,13 +42,17 @@ export default function Footer() {
           className="mt-9 flex flex-wrap items-center justify-between gap-5 pt-5 text-xs text-muted-dark"
           style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
         >
-          <span>© {new Date().getFullYear()} Microflex Film Corporation. All rights reserved.</span>
-          <div className="flex flex-wrap items-center gap-5">
-            <Link href="/terms" className="hover:text-cyan transition">
-              Terms &amp; Legal
-            </Link>
-            <span>Flexible Packaging. Engineered to Perform.</span>
-          </div>
+          <span>
+            © {new Date().getFullYear()} Microflex Film Corporation. All rights reserved. •
+            Flexible Packaging. Engineered to Perform.
+          </span>
+          <Link
+            href="/terms"
+            className="hover:text-cyan transition font-semibold uppercase tracking-wider"
+            style={{ letterSpacing: "0.08em" }}
+          >
+            Terms &amp; Conditions
+          </Link>
         </div>
       </div>
     </footer>

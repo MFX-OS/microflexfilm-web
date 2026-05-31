@@ -19,7 +19,7 @@ const ASPECT = 8549 / 2500;
 export default function Logo({
   size = "md",
   variant = "light",
-  href = "#top",
+  href = "/",
   ariaLabel = "Microflex Film Corporation home",
   priority = false,
 }: {

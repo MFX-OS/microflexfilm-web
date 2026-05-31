@@ -90,10 +90,10 @@ function HeroStage() {
           <div className="flex-1">
             {/* Mobile: smaller logo so it never overflows the inner box */}
             <div className="lg:hidden">
-              <Logo size="md" variant="light" href={null} priority />
+              <Logo size="md" variant="light" priority />
             </div>
             <div className="hidden lg:block">
-              <Logo size="xl" variant="light" href={null} priority />
+              <Logo size="xl" variant="light" priority />
             </div>
           </div>
           <div
