@@ -1,4 +1,5 @@
 import Logo from "./Logo";
+import Link from "next/link";
 
 export default function Footer() {
   return (
@@ -42,7 +43,12 @@ export default function Footer() {
           style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
         >
           <span>© {new Date().getFullYear()} Microflex Film Corporation. All rights reserved.</span>
-          <span>Flexible Packaging. Engineered to Perform.</span>
+          <div className="flex flex-wrap items-center gap-5">
+            <Link href="/terms" className="hover:text-cyan transition">
+              Terms &amp; Legal
+            </Link>
+            <span>Flexible Packaging. Engineered to Perform.</span>
+          </div>
         </div>
       </div>
     </footer>
