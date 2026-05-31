@@ -1,6 +1,18 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { submitInquiry } from "@/app/actions/submitInquiry";
 
 export default function QuoteForm() {
+  // Anti-spam: capture the time the form mounts on the client.
+  // Real humans take 10+ seconds to fill the form; bots submit instantly.
+  // We render no value on SSR to avoid hydration mismatch.
+  const [formLoadedAtMs, setFormLoadedAtMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    setFormLoadedAtMs(Date.now());
+  }, []);
+
   return (
     <section id="quote-form" className="py-16 md:py-20">
       <div className="container-x">
@@ -24,6 +36,27 @@ export default function QuoteForm() {
             }}
           >
             <form action={submitInquiry} className="grid gap-3.5">
+              {/* ===== Anti-spam fields (invisible to humans) ===== */}
+              {/* Honeypot — bots fill every field they find. Real humans don't see this. */}
+              <div aria-hidden="true" style={honeypotStyle}>
+                <label htmlFor="website">Website (leave blank)</label>
+                <input
+                  type="text"
+                  id="website"
+                  name="website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  defaultValue=""
+                />
+              </div>
+              {/* Submit-time threshold token */}
+              <input
+                type="hidden"
+                name="formLoadedAtMs"
+                value={formLoadedAtMs ?? ""}
+              />
+              {/* ================================================== */}
+
               <div className="grid gap-3.5 sm:grid-cols-2">
                 <Input name="name" placeholder="Contact Name" required />
                 <Input name="company" placeholder="Company Name" required />
@@ -50,7 +83,7 @@ export default function QuoteForm() {
                   <option>Printed Film</option>
                   <option>Stand-Up Pouch</option>
                   <option>Lay Flat Pouch</option>
-                  <option>Labels & Stickers</option>
+                  <option>Labels &amp; Stickers</option>
                   <option>Shrink Sleeves</option>
                   <option>Sachets / Stick Packs</option>
                   <option>Custom Packaging</option>
@@ -82,6 +115,19 @@ export default function QuoteForm() {
 const inputStyle = {
   borderColor: "rgba(0,216,242,0.22)",
   background: "rgba(0,0,0,0.28)",
+};
+
+// Honeypot field: invisible to sighted users and screen readers, but
+// crawlable by naive bots that fill all input fields they encounter.
+// Uses absolute positioning instead of display:none — some bots skip
+// display:none/visibility:hidden fields because they know it's a honeypot.
+const honeypotStyle: React.CSSProperties = {
+  position: "absolute",
+  left: "-10000px",
+  top: "auto",
+  width: "1px",
+  height: "1px",
+  overflow: "hidden",
 };
 
 function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {

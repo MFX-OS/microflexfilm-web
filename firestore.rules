@@ -11,6 +11,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Spam/rejected submissions log. Same lockdown — only the server action
+    // can write here via Admin SDK.
+    match /rejected_inquiries/{doc} {
+      allow read: if false;
+      allow write: if false;
+    }
+
     // Default deny everything else.
     match /{document=**} {
       allow read, write: if false;

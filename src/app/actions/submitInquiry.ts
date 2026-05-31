@@ -1,9 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { FieldValue } from "firebase-admin/firestore";
 import nodemailer from "nodemailer";
 import { adminDb } from "@/lib/firebase-admin";
+import { runAllChecks } from "@/lib/spam-detection";
 
 const DEFAULT_RECIPIENTS = ["randy@microflexfilm.com", "info@microflexfilm.com"];
 const DEFAULT_FROM_NAME = "Microflex Inquiries";
@@ -21,8 +23,38 @@ export async function submitInquiry(formData: FormData) {
     message: String(formData.get("message") ?? "").trim(),
   };
 
+  // Anti-spam fields (hidden from humans, captured by the form)
+  const honeypot = String(formData.get("website") ?? "");
+  const formLoadedAtRaw = String(formData.get("formLoadedAtMs") ?? "");
+  const formLoadedAtMs = formLoadedAtRaw ? parseInt(formLoadedAtRaw, 10) : null;
+
   if (!payload.name || !payload.email || !payload.company) {
     redirect("/contact-error?reason=missing-fields");
+  }
+
+  // === Run anti-spam checks ===
+  const spamCheck = runAllChecks({
+    honeypot,
+    formLoadedAtMs,
+    email: payload.email,
+    message: payload.message,
+  });
+
+  if (!spamCheck.ok) {
+    // Log rejection to Firestore for audit / tuning. NEVER block the redirect —
+    // we want bots to think they succeeded so they don't adapt or retry.
+    await logRejection({
+      ...payload,
+      rejectionReason: spamCheck.reason,
+      rejectionLayer: spamCheck.layer,
+      honeypotValue: honeypot,
+      formOpenMs: formLoadedAtMs ? Date.now() - formLoadedAtMs : null,
+    }).catch((err) => {
+      console.error("Failed to log spam rejection:", err);
+    });
+
+    // Silent drop: redirect to thank-you as if it worked. Bot moves on.
+    redirect("/thank-you");
   }
 
   // 1. Write to Firestore (primary storage, always happens)
@@ -32,6 +64,8 @@ export async function submitInquiry(formData: FormData) {
       source: "microflexfilm.com",
       createdAt: FieldValue.serverTimestamp(),
       status: "new",
+      // Capture timing for analytics / future tuning
+      formOpenMs: formLoadedAtMs ? Date.now() - formLoadedAtMs : null,
     });
   } catch (err) {
     console.error("Failed to write inquiry to Firestore:", err);
@@ -44,6 +78,39 @@ export async function submitInquiry(formData: FormData) {
   });
 
   redirect("/thank-you");
+}
+
+// Log spam rejections to a separate collection so they don't clutter inquiries
+// and so we can tune detection over time.
+async function logRejection(record: {
+  name: string;
+  company: string;
+  email: string;
+  phone: string;
+  requestType: string;
+  packagingType: string;
+  skus: string;
+  quantity: string;
+  message: string;
+  rejectionReason: string;
+  rejectionLayer: string;
+  honeypotValue: string;
+  formOpenMs: number | null;
+}) {
+  let userAgent = "";
+  try {
+    const h = await headers();
+    userAgent = h.get("user-agent") ?? "";
+  } catch {
+    // headers() may throw in some contexts; ignore
+  }
+
+  await adminDb.collection("rejected_inquiries").add({
+    ...record,
+    userAgent,
+    source: "microflexfilm.com",
+    rejectedAt: FieldValue.serverTimestamp(),
+  });
 }
 
 async function sendInquiryEmail(payload: {
@@ -73,7 +140,6 @@ async function sendInquiryEmail(payload: {
   const fromName = process.env.INQUIRY_FROM_NAME ?? DEFAULT_FROM_NAME;
   const from = `"${fromName}" <${smtpUser}>`;
 
-  // Gmail SMTP via Google Workspace App Password
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 465,
