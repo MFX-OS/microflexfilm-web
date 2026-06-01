@@ -53,15 +53,8 @@ export default function Header() {
             </a>
           </div>
 
-          <a
-            href="#quote-form"
-            className="btn btn-primary px-4 text-xs md:hidden"
-            style={{ minHeight: 40 }}
-          >
-            Start
-          </a>
-        </div>
-      </header>
-    </>
-  );
-}
+          {/* Mobile-only CTAs — sit side by side on phones */}
+          <div className="flex gap-2 md:hidden">
+            <ChatButton
+              className="btn btn-secondary px-3 text-xs"
+              style={{ minHeight: 40 }}
