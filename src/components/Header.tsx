@@ -1,4 +1,5 @@
 import Logo from "./Logo";
+import ChatButton from "./ChatButton";
 
 const primaryNav = [
   { href: "#capabilities", label: "Capabilities" },
@@ -46,9 +47,7 @@ export default function Header() {
           </nav>
 
           <div className="hidden gap-3 md:flex">
-            <a href="#client-center" className="btn btn-secondary">
-              Client Center
-            </a>
+            <ChatButton className="btn btn-secondary">Chat with us</ChatButton>
             <a href="#quote-form" className="btn btn-primary">
               Start a Project
             </a>
