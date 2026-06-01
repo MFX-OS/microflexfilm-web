@@ -58,3 +58,19 @@ export default function Header() {
             <ChatButton
               className="btn btn-secondary px-3 text-xs"
               style={{ minHeight: 40 }}
+            >
+              Chat
+            </ChatButton>
+            <a
+              href="#quote-form"
+              className="btn btn-primary px-3 text-xs"
+              style={{ minHeight: 40 }}
+            >
+              Start
+            </a>
+          </div>
+        </div>
+      </header>
+    </>
+  );
+}
