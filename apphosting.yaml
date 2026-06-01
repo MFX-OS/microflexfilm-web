@@ -21,7 +21,6 @@ env:
       - RUNTIME
 
   # Google Workspace App Password for flex@microflexfilm.com (16 chars, no spaces).
-  # Generate at https://myaccount.google.com/apppasswords while signed in as flex@
   # Set via:  firebase apphosting:secrets:set SMTP_PASSWORD
   - variable: SMTP_PASSWORD
     secret: SMTP_PASSWORD
@@ -40,13 +39,10 @@ env:
     availability:
       - RUNTIME
 
-  # Tidio live chat public key — drives the chat widget.
-  # Find it under Tidio dashboard → Settings → Channels → Live Chat → Installation.
-  # Looks like: abc123def456 (~10 alphanumeric chars).
-  # Available at BUILD time because Next.js bakes it into the client bundle.
-  # Replace REPLACE_WITH_TIDIO_KEY after signing up at https://www.tidio.com
+  # Tidio live chat public key. Drives the chat widget on every page.
+  # Customer chats route into a Google Chat space via Tidio's native integration.
   - variable: NEXT_PUBLIC_TIDIO_PUBLIC_KEY
-    value: "REPLACE_WITH_TIDIO_KEY"
+    value: "vernd2t1mwndbqeg6ebidppeymryyhof"
     availability:
       - BUILD
       - RUNTIME
