@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const sans = Inter({
@@ -75,12 +76,29 @@ export const viewport: Viewport = {
   colorScheme: "dark",
 };
 
+// Tidio live chat. Customer chats route into a Google Chat space via Tidio's
+// native Google Chat integration so Randy + team reply directly inside Google
+// Chat without switching apps. Loads only when NEXT_PUBLIC_TIDIO_PUBLIC_KEY is
+// set to a real public key (alphanumeric, ~10 chars). Placeholder values are
+// ignored so the site stays clean until a real key is provisioned.
+const TIDIO_PUBLIC_KEY = process.env.NEXT_PUBLIC_TIDIO_PUBLIC_KEY;
+const TIDIO_ENABLED = TIDIO_PUBLIC_KEY && /^[a-z0-9]{8,40}$/i.test(TIDIO_PUBLIC_KEY);
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        {TIDIO_ENABLED && (
+          <Script
+            id="tidio-chat"
+            strategy="afterInteractive"
+            src={`//code.tidio.co/${TIDIO_PUBLIC_KEY}.js`}
+          />
+        )}
+      </body>
     </html>
   );
 }
