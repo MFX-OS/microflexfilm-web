@@ -2,38 +2,44 @@ const caps = [
   {
     title: "Pouches & Flexible Packaging",
     body: "Shelf-ready pouch formats designed for presentation, protection, and product delivery.",
-    cta: "Start Pouch Project",
+    cta: "Explore Pouches",
     visual: "pouch",
+    href: "/capabilities/pouches",
   },
   {
     title: "Labels & Stickers",
     body: "Durable, brand-forward labels for clean product presentation and production consistency.",
-    cta: "Request Label Support",
+    cta: "Explore Labels",
     visual: "label",
+    href: "/capabilities/labels",
   },
   {
     title: "Printed Film / Rollstock",
     body: "Rollstock and printed film engineered for performance, shelf impact, and scalable production.",
-    cta: "Request Film Quote",
+    cta: "Explore Rollstock",
     visual: "roll",
+    href: "/capabilities/rollstock",
   },
   {
     title: "Bottles & Specialty Formats",
     body: "Brand-ready packaging support across specialty formats, materials, and presentation needs.",
-    cta: "Discuss Specialty Packaging",
+    cta: "Explore Specialty Formats",
     visual: "bottle",
+    href: "/capabilities/specialty",
   },
   {
     title: "Stick Packs & Sachets",
     body: "Small-format, portion-controlled packaging for samples, powders, liquids, and single-serve products.",
-    cta: "Start Sachet Project",
+    cta: "Explore Stick Packs",
     visual: "stick",
+    href: "/capabilities/stick-packs",
   },
   {
     title: "Display & Shipping Packaging",
     body: "Boxes, sample presentations, and shipping support for customer-ready packaging systems.",
-    cta: "View Packaging Support",
+    cta: "Explore Display & Shipping",
     visual: "box",
+    href: "/capabilities/display",
   },
 ];
 
@@ -60,7 +66,7 @@ export default function Capabilities() {
               <h3 className="mb-2 text-xl font-bold text-paper">{c.title}</h3>
               <p className="mb-5 text-sm leading-relaxed text-muted">{c.body}</p>
               <a
-                href="#quote-form"
+                href={c.href}
                 className="mt-auto inline-block text-xs font-extrabold uppercase text-cyan"
                 style={{ letterSpacing: "0.08em" }}
               >
