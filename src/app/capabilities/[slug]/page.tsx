@@ -19,6 +19,12 @@ const diagrams: Record<string, React.ComponentType> = {
   specialty: BottleBlueprint,
   "stick-packs": StickBlueprint,
   display: BoxBlueprint,
+  "flat-pouches": StickBlueprint,
+  "quad-seal": PouchBlueprint,
+  "fin-seal": RollstockBlueprint,
+  "die-cut": StickBlueprint,
+  "child-resistant": PouchBlueprint,
+  "spouted-pouches": PouchBlueprint,
 };
 
 export function generateStaticParams() {
