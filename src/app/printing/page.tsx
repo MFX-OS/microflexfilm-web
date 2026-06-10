@@ -3,9 +3,9 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
-  title: "Printing Options | Digital, Flexo & Rotogravure",
+  title: "Printing Options | Digital & Flexographic",
   description:
-    "Compare packaging print technologies — digital for trials and short runs, flexographic for mid-volume efficiency, rotogravure for large-run color precision. Microflex matches the press to your project.",
+    "Compare packaging print technologies — digital for trials and short runs, flexographic for production-scale efficiency. Microflex matches the press to your project.",
   alternates: { canonical: "https://microflexfilm.com/printing" },
 };
 
@@ -38,20 +38,6 @@ const methods = [
     bestWhen: "Established products with steady volume and consistent artwork.",
     tradeoff: "Plate costs front-load the investment; artwork changes mean new plates.",
   },
-  {
-    name: "Rotogravure Printing",
-    mono: "GRAVURE",
-    tagline: "Maximum image quality at maximum volume.",
-    desc: "Gravure engraves your artwork into chrome-plated cylinders that deliver the highest image fidelity and color consistency in packaging — run after run, year after year. The cylinder investment pays for itself across large volumes.",
-    strengths: [
-      "Best-in-class photographic image quality and fine gradients",
-      "Unmatched color consistency across massive runs and reorders",
-      "Cylinders last for millions of impressions",
-      "The lowest unit cost at large volumes",
-    ],
-    bestWhen: "High-volume flagship SKUs where image quality and consistency are non-negotiable.",
-    tradeoff: "Cylinder engraving carries the highest up-front tooling cost and lead time.",
-  },
 ];
 
 export default function PrintingPage() {
@@ -66,7 +52,7 @@ export default function PrintingPage() {
               The right press for the right run.
             </h1>
             <p className="mt-4 max-w-[720px] text-xl font-bold leading-snug text-cyan">
-              Digital to test. Flexo to scale. Gravure to dominate.
+              Digital to test. Flexo to scale.
             </p>
             <p className="mt-4 max-w-[760px] text-lg leading-relaxed text-muted">
               Print technology is an economics decision as much as a quality one. We
@@ -144,16 +130,15 @@ export default function PrintingPage() {
               </h2>
               <p className="mt-4 text-lg leading-relaxed text-muted">
                 Start digital to validate your design in-market. Move to flexo as volume
-                builds. Graduate to gravure when your flagship earns it. Because we support
-                all three paths, you never outgrow your packaging partner — and your brand
-                colors stay consistent through every transition.
+                builds. Because we support both paths, you never outgrow your packaging
+                partner — and your brand colors stay consistent through every transition.
               </p>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
               {[
                 { step: "TEST", method: "Digital", desc: "Small runs, fast turns, zero tooling. Validate the design, the shelf, and the customer." },
                 { step: "LAUNCH", method: "Flexo", desc: "Volume builds — plates pay for themselves and unit costs drop into retail-ready territory." },
-                { step: "SCALE", method: "Gravure", desc: "Flagship volume justifies cylinders: peak image quality at the lowest unit cost." },
+                { step: "SCALE", method: "Flexo at Volume", desc: "Durable plates, fast webs, and locked-in color standards carry your flagship SKUs at production scale." },
               ].map((s) => (
                 <div key={s.step} className="card !min-h-0">
                   <div className="mb-2 font-mono text-xs font-black tracking-widest text-cyan">{s.step}</div>

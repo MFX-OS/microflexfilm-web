@@ -107,8 +107,7 @@ export default function AboutPage() {
                 <p className="mt-4 text-lg leading-relaxed text-muted">
                   Most packaging suppliers are built for one stage of your growth. We
                   engineered Microflex for the whole arc: digital print and short runs when
-                  you&rsquo;re testing, efficient flexo as you scale, gravure-class
-                  consistency when your flagship demands it — with the same specialist, the
+                  you&rsquo;re testing, efficient flexo as you scale — with the same specialist, the
                   same quality system, and the same brand colors at every stage.
                 </p>
                 <p className="mt-4 text-lg leading-relaxed text-muted">

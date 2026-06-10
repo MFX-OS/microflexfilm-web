@@ -17,7 +17,7 @@ const faqs: Faq[] = [
   },
   {
     q: "What quantities can you produce?",
-    a: "From short digital runs for testing and launches to large-scale production programs. Because we support digital, flexographic, and rotogravure print paths, minimums vary by format and method — tell us your target volume and we'll match the most economical path to it rather than forcing your project into one press.",
+    a: "From short digital runs for testing and launches to large-scale production programs. Because we support both digital and flexographic print paths, minimums vary by format and method — tell us your target volume and we'll match the most economical path to it rather than forcing your project into one press.",
   },
   {
     q: "How long does production take?",
@@ -53,7 +53,7 @@ const faqs: Faq[] = [
   },
   {
     q: "Can you print digitally for a test run and then scale up later?",
-    a: "That's exactly the path we're built for. Start digital with no plate costs to validate your design in-market, move to flexographic printing as volume grows, and graduate to rotogravure for flagship-scale runs — same partner, same specialist, consistent brand colors at every stage.",
+    a: "That's exactly the path we're built for. Start digital with no plate costs to validate your design in-market, then move to flexographic printing as volume grows — same partner, same specialist, consistent brand colors at every stage.",
   },
   {
     q: "How do reorders work?",
