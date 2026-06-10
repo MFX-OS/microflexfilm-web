@@ -15,7 +15,17 @@ export default function Header() {
       <div className="topline hidden md:block">
         <div className="container-x flex min-h-[34px] items-center justify-between gap-5">
           <span>SQF Certified Facility • Solar-Powered Operations • Manufactured in the USA</span>
-          <span>MicroflexFilm.com • 909.360.9066</span>
+          <span>
+            <a
+              href="https://os.microflexfilm.com/portal"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-cyan transition hover:opacity-80"
+            >
+              Client Login
+            </a>
+            {" • MicroflexFilm.com • 909.360.9066"}
+          </span>
         </div>
       </div>
 
@@ -44,6 +54,14 @@ export default function Header() {
                 {item.label}
               </a>
             ))}
+            <a
+              href="https://os.microflexfilm.com/portal"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition hover:text-cyan"
+            >
+              Client Portal
+            </a>
           </nav>
 
           <div className="hidden gap-3 md:flex">

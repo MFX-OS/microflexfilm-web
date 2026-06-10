@@ -46,13 +46,24 @@ export default function Footer() {
             © {new Date().getFullYear()} Microflex Film Corporation. All rights reserved. •
             Flexible Packaging. Engineered to Perform.
           </span>
-          <Link
-            href="/terms"
-            className="hover:text-cyan transition font-semibold uppercase tracking-wider"
-            style={{ letterSpacing: "0.08em" }}
-          >
-            Terms &amp; Conditions
-          </Link>
+          <span className="flex items-center gap-5">
+            <a
+              href="https://os.microflexfilm.com/portal"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-cyan transition font-semibold uppercase tracking-wider"
+              style={{ letterSpacing: "0.08em" }}
+            >
+              Client Portal
+            </a>
+            <Link
+              href="/terms"
+              className="hover:text-cyan transition font-semibold uppercase tracking-wider"
+              style={{ letterSpacing: "0.08em" }}
+            >
+              Terms &amp; Conditions
+            </Link>
+          </span>
         </div>
       </div>
     </footer>

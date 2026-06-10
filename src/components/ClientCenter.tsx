@@ -1,3 +1,5 @@
+const PORTAL_URL = "https://os.microflexfilm.com/portal";
+
 const tiles = [
   { letter: "A", title: "Request Quote", body: "Start a new project or request pricing for an existing packaging need.", cta: "Start", href: "#quote-form" },
   { letter: "B", title: "Upload Artwork", body: "Send artwork files, notes, SKU names, and project details for review.", cta: "Upload", href: "#quote-form" },
@@ -36,6 +38,29 @@ export default function ClientCenter() {
             </a>
           ))}
         </div>
+
+        {/* Client Portal — existing clients sign in to the Microflex OS portal to
+            review quotes, approve pricing, sign sales orders, and track jobs. */}
+        <a
+          href={PORTAL_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="card mt-6 flex flex-col items-start gap-4 border-cyan/40 sm:flex-row sm:items-center"
+        >
+          <div className="flex-1">
+            <h3 className="mb-1 text-xl font-bold text-paper">Client Portal Login</h3>
+            <p className="text-sm leading-snug text-muted">
+              Already working with us? Sign in to review and approve quotes, sign sales orders,
+              upload files to your project workspace, and track order status in real time.
+            </p>
+          </div>
+          <span
+            className="btn btn-primary shrink-0"
+            style={{ letterSpacing: "0.04em" }}
+          >
+            Open Client Portal →
+          </span>
+        </a>
       </div>
     </section>
   );
