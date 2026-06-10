@@ -2,8 +2,8 @@ const resources = [
   {
     title: "Artwork Checklist",
     body: "Prepare files, dimensions, colors, dielines, and production details before submitting artwork.",
-    cta: "Upload Artwork",
-    href: "#client-center",
+    cta: "View Guidelines",
+    href: "/artwork-guidelines",
   },
   {
     title: "Quote Checklist",

@@ -48,3 +48,7 @@ ui-debug.log
 # editor
 .vscode/
 .idea/
+
+# Firebase admin credentials — never commit
+firebase-service-account.json
+*firebase-adminsdk*.json
