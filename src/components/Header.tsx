@@ -17,7 +17,7 @@ export default function Header() {
           <span>SQF Certified Facility • Solar-Powered Operations • Manufactured in the USA</span>
           <span>
             <a
-              href="https://os.microflexfilm.com/portal"
+              href="/portal"
               target="_blank"
               rel="noopener noreferrer"
               className="font-bold text-cyan transition hover:opacity-80"
@@ -55,7 +55,7 @@ export default function Header() {
               </a>
             ))}
             <a
-              href="https://os.microflexfilm.com/portal"
+              href="/portal"
               target="_blank"
               rel="noopener noreferrer"
               className="transition hover:text-cyan"

@@ -48,7 +48,7 @@ export default function Footer() {
           </span>
           <span className="flex items-center gap-5">
             <a
-              href="https://os.microflexfilm.com/portal"
+              href="/portal"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-cyan transition font-semibold uppercase tracking-wider"
