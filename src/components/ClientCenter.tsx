@@ -1,4 +1,4 @@
-const PORTAL_URL = "https://os.microflexfilm.com/portal";
+const PORTAL_URL = "/portal";
 
 const tiles = [
   { letter: "A", title: "Request Quote", body: "Start a new project or request pricing for an existing packaging need.", cta: "Start", href: "#quote-form" },
@@ -43,15 +43,13 @@ export default function ClientCenter() {
             review quotes, approve pricing, sign sales orders, and track jobs. */}
         <a
           href={PORTAL_URL}
-          target="_blank"
-          rel="noopener noreferrer"
           className="card mt-6 flex flex-col items-start gap-4 border-cyan/40 sm:flex-row sm:items-center"
         >
           <div className="flex-1">
             <h3 className="mb-1 text-xl font-bold text-paper">Client Portal Login</h3>
             <p className="text-sm leading-snug text-muted">
-              Already working with us? Sign in to review and approve quotes, sign sales orders,
-              upload files to your project workspace, and track order status in real time.
+              Already working with us? Sign in with Google to view current and pending
+              orders, submit requests, and reorder previous runs with one click.
             </p>
           </div>
           <span

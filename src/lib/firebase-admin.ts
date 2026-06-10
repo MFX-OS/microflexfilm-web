@@ -44,3 +44,6 @@ function initAdmin(): App {
 
 const app = initAdmin();
 export const adminDb = getFirestore(app);
+
+import { getAuth } from "firebase-admin/auth";
+export const adminAuth = getAuth(app);
