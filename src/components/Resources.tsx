@@ -15,7 +15,7 @@ const resources = [
     title: "Material & Finish Guide",
     body: "Review matte, gloss, metallic, clear, custom, and barrier performance options.",
     cta: "Explore Materials",
-    href: "#capabilities",
+    href: "/materials",
   },
 ];
 
