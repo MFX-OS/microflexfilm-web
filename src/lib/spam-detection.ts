@@ -247,12 +247,40 @@ export function checkGibberish(message: string): SpamCheckResult {
   return { ok: true };
 }
 
+
+// --------- 8. File link validation ----------------------------------------
+// Accept only plain http(s) links to real hostnames — no IP literals,
+// no embedded credentials, no exotic schemes.
+export function checkFileLink(link: string): SpamCheckResult {
+  if (!link) return { ok: true };
+  if (link.length > 500) {
+    return { ok: false, layer: "file-link", reason: "file link too long" };
+  }
+  let url: URL;
+  try {
+    url = new URL(link);
+  } catch {
+    return { ok: false, layer: "file-link", reason: "file link is not a valid URL" };
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    return { ok: false, layer: "file-link", reason: `blocked scheme: ${url.protocol}` };
+  }
+  if (url.username || url.password) {
+    return { ok: false, layer: "file-link", reason: "credentials embedded in URL" };
+  }
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(url.hostname) || url.hostname === "localhost") {
+    return { ok: false, layer: "file-link", reason: "IP-literal or localhost host" };
+  }
+  return { ok: true };
+}
+
 // --------- Master check ---------------------------------------------------
 export interface SpamCheckInput {
   honeypot: string | null;
   formLoadedAtMs: number | null;
   email: string;
   message: string;
+  fileLink?: string;
 }
 
 export function runAllChecks(input: SpamCheckInput): SpamCheckResult {
@@ -264,6 +292,7 @@ export function runAllChecks(input: SpamCheckInput): SpamCheckResult {
     checkKeywords(input.message),
     checkAllCaps(input.message),
     checkGibberish(input.message),
+    checkFileLink(input.fileLink ?? ""),
   ];
 
   for (const result of checks) {

@@ -1,17 +1,69 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { submitInquiry } from "@/app/actions/submitInquiry";
+
+const ACCEPT = ".ai,.pdf,.psd,.png,.jpg,.jpeg,.tif,.tiff,.eps,.zip,.svg";
+const MAX_FILES = 3;
+const MAX_TOTAL_MB = 10;
+
+function SubmitButton({ disabled }: { disabled?: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending || disabled}
+      className="btn btn-primary mt-2"
+      style={pending || disabled ? { opacity: 0.55, pointerEvents: "none" } : undefined}
+    >
+      {pending ? "Submitting…" : "Submit Project Request"}
+    </button>
+  );
+}
 
 export default function QuoteForm() {
   // Anti-spam: capture the time the form mounts on the client.
-  // Real humans take 10+ seconds to fill the form; bots submit instantly.
-  // We render no value on SSR to avoid hydration mismatch.
   const [formLoadedAtMs, setFormLoadedAtMs] = useState<number | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [fileNames, setFileNames] = useState<string[]>([]);
+  const submittedRef = useRef(false);
 
   useEffect(() => {
     setFormLoadedAtMs(Date.now());
   }, []);
+
+  function onFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    setFileError(null);
+    if (files.length > MAX_FILES) {
+      setFileError(`Maximum ${MAX_FILES} files — for more, share a link below instead.`);
+      e.target.value = "";
+      setFileNames([]);
+      return;
+    }
+    const total = files.reduce((s, f) => s + f.size, 0);
+    if (total > MAX_TOTAL_MB * 1024 * 1024) {
+      setFileError(`Files exceed ${MAX_TOTAL_MB} MB total — please share a link below instead.`);
+      e.target.value = "";
+      setFileNames([]);
+      return;
+    }
+    setFileNames(files.map((f) => f.name));
+  }
+
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    // Belt-and-suspenders double-submit guard (server dedupes too)
+    if (submittedRef.current) {
+      e.preventDefault();
+      return;
+    }
+    submittedRef.current = true;
+    // Re-allow after 15s in case of a network failure
+    setTimeout(() => {
+      submittedRef.current = false;
+    }, 15000);
+  }
 
   return (
     <section id="quote-form" className="py-16 md:py-20">
@@ -26,6 +78,11 @@ export default function QuoteForm() {
               Submit project information and the Microflex team will route your request to the
               right group for review.
             </p>
+            <p className="mt-3 text-sm leading-relaxed text-muted-dark">
+              Attach artwork or PO files directly (up to {MAX_FILES} files, {MAX_TOTAL_MB} MB
+              total), or paste a link from Google Drive, Dropbox, or WeTransfer for larger
+              files.
+            </p>
           </div>
 
           <div
@@ -35,9 +92,8 @@ export default function QuoteForm() {
               background: "rgba(255,255,255,0.045)",
             }}
           >
-            <form action={submitInquiry} className="grid gap-3.5">
+            <form action={submitInquiry} onSubmit={onSubmit} className="grid gap-3.5">
               {/* ===== Anti-spam fields (invisible to humans) ===== */}
-              {/* Honeypot — bots fill every field they find. Real humans don't see this. */}
               <div aria-hidden="true" style={honeypotStyle}>
                 <label htmlFor="website">Website (leave blank)</label>
                 <input
@@ -49,12 +105,7 @@ export default function QuoteForm() {
                   defaultValue=""
                 />
               </div>
-              {/* Submit-time threshold token */}
-              <input
-                type="hidden"
-                name="formLoadedAtMs"
-                value={formLoadedAtMs ?? ""}
-              />
+              <input type="hidden" name="formLoadedAtMs" value={formLoadedAtMs ?? ""} />
               {/* ================================================== */}
 
               <div className="grid gap-3.5 sm:grid-cols-2">
@@ -93,16 +144,50 @@ export default function QuoteForm() {
                 <Input name="skus" placeholder="Number of SKUs" />
                 <Input name="quantity" placeholder="Estimated Quantity" />
               </div>
+
+              {/* ===== Files: direct upload + link ===== */}
+              <div
+                className="rounded-2xl p-4"
+                style={{ border: "1px dashed rgba(0,216,242,0.35)", background: "rgba(0,216,242,0.04)" }}
+              >
+                <label className="block">
+                  <span className="mb-2 block text-xs font-extrabold uppercase tracking-widest text-muted">
+                    Artwork / PO files (optional)
+                  </span>
+                  <input
+                    type="file"
+                    name="files"
+                    multiple
+                    accept={ACCEPT}
+                    onChange={onFilesChange}
+                    className="block w-full text-sm text-muted file:mr-3 file:rounded-full file:border-0 file:px-4 file:py-2 file:text-xs file:font-extrabold file:uppercase file:tracking-wider"
+                    style={{ color: "#a9b9c8" }}
+                  />
+                </label>
+                {fileNames.length > 0 && (
+                  <p className="mt-2 text-xs text-cyan">✓ {fileNames.join(" · ")}</p>
+                )}
+                {fileError && <p className="mt-2 text-xs" style={{ color: "#ff9d9d" }}>{fileError}</p>}
+                <p className="mt-2 text-[11px] leading-relaxed text-muted-dark">
+                  Up to {MAX_FILES} files, {MAX_TOTAL_MB} MB total. AI, PDF, PSD, PNG, JPG,
+                  TIFF, EPS, SVG, ZIP.
+                </p>
+              </div>
+              <Input
+                name="fileLink"
+                type="url"
+                placeholder="Or paste a file link (Google Drive, Dropbox, WeTransfer…)"
+              />
+              {/* ======================================= */}
+
               <Textarea
                 name="message"
                 placeholder="Tell us about your project, timeline, artwork status, materials, finishes, or questions."
               />
-              <button type="submit" className="btn btn-primary mt-2">
-                Submit Project Request
-              </button>
+              <SubmitButton disabled={Boolean(fileError)} />
               <p className="text-xs text-muted-dark">
                 By submitting this form, you are sending project information to Microflex for
-                review.
+                review. Submissions are screened automatically for spam and abuse.
               </p>
             </form>
           </div>
@@ -117,10 +202,6 @@ const inputStyle = {
   background: "rgba(0,0,0,0.28)",
 };
 
-// Honeypot field: invisible to sighted users and screen readers, but
-// crawlable by naive bots that fill all input fields they encounter.
-// Uses absolute positioning instead of display:none — some bots skip
-// display:none/visibility:hidden fields because they know it's a honeypot.
 const honeypotStyle: React.CSSProperties = {
   position: "absolute",
   left: "-10000px",

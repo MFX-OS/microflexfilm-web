@@ -13,7 +13,9 @@ export default async function ContactError({
 }) {
   const sp = await searchParams;
   const reason =
-    sp?.reason === "missing-fields"
+    sp?.reason === "files"
+      ? "One of the attached files couldn't be accepted — please check the file types (AI, PDF, PSD, PNG, JPG, TIFF, EPS, SVG, ZIP) and keep the total under 10 MB, or share a file link instead."
+      : sp?.reason === "missing-fields"
       ? "Please fill in your name, company, and email so we can reach you."
       : "Something went wrong on our side. Please try again, or email us directly.";
 
