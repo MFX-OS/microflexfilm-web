@@ -3,10 +3,10 @@ import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import GuidePage from "@/components/GuidePage";
-import { industryPages, getIndustryPage } from "@/data/industryPages";
+import { applicationPages, getApplicationPage } from "@/data/applicationPages";
 
 export function generateStaticParams() {
-  return industryPages.map((i) => ({ slug: i.slug }));
+  return applicationPages.map((i) => ({ slug: i.slug }));
 }
 
 export async function generateMetadata({
@@ -15,33 +15,33 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const p = getIndustryPage(slug);
+  const p = getApplicationPage(slug);
   if (!p) return {};
   return {
     title: p.seoTitle,
     description: p.metaDesc,
-    alternates: { canonical: `https://microflexfilm.com/industries/${p.slug}` },
+    alternates: { canonical: `https://microflexfilm.com/applications/${p.slug}` },
   };
 }
 
-export default async function IndustryRoute({
+export default async function ApplicationRoute({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const p = getIndustryPage(slug);
+  const p = getApplicationPage(slug);
   if (!p) notFound();
 
-  const idx = industryPages.findIndex((x) => x.slug === p.slug);
-  const related = [...industryPages.slice(idx + 1), ...industryPages.slice(0, idx)]
+  const idx = applicationPages.findIndex((x) => x.slug === p.slug);
+  const related = [...applicationPages.slice(idx + 1), ...applicationPages.slice(0, idx)]
     .slice(0, 6)
     .map((x) => ({ slug: x.slug, title: x.title }));
 
   return (
     <>
       <Header />
-      <GuidePage page={p} related={related} relatedTitle="Explore more industries" basePath="/industries" />
+      <GuidePage page={p} related={related} relatedTitle="Explore more applications" basePath="/applications" />
       <Footer />
     </>
   );

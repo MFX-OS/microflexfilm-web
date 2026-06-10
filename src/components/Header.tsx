@@ -9,6 +9,17 @@ type NavGroup = { label: string; links: NavLink[] };
 
 const groups: NavGroup[] = [
   {
+    label: "Build My Spec",
+    links: [
+      { href: "/packaging-spec-builder", label: "Packaging Spec Builder" },
+      { href: "/calculators#format-finder", label: "Format Finder" },
+      { href: "/calculators#barrier-selector", label: "Barrier Selector" },
+      { href: "/printing", label: "Print Method Guide" },
+      { href: "/artwork-guidelines", label: "Artwork Readiness Check" },
+      { href: "/calculators", label: "All Tools & Calculators" },
+    ],
+  },
+  {
     label: "Products",
     links: [
       { href: "/capabilities", label: "All Formats" },
@@ -33,12 +44,14 @@ const groups: NavGroup[] = [
       { href: "/printing", label: "Printing Options" },
       { href: "/artwork-guidelines", label: "Artwork Guidelines" },
       { href: "/industries", label: "Industries" },
+      { href: "/applications", label: "Applications" },
     ],
   },
   {
     label: "Resources",
     links: [
       { href: "/about", label: "About Microflex" },
+      { href: "/journal", label: "Packaging Journal" },
       { href: "/faq", label: "FAQs" },
       { href: "/calculators", label: "Packaging Calculators" },
       { href: "/#sample-kit", label: "Sample Kit" },

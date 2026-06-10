@@ -14,20 +14,22 @@ const cols = [
     ],
   },
   {
-    title: "Industries",
+    title: "Industries & Applications",
     links: [
-      { href: "/industries/coffee-tea", label: "Coffee & Tea" },
-      { href: "/industries/snacks", label: "Snacks" },
-      { href: "/industries/supplements", label: "Supplements" },
-      { href: "/industries/pet", label: "Pet Food & Treats" },
-      { href: "/industries/frozen-foods", label: "Frozen Foods" },
+      { href: "/industries/coffee-packaging", label: "Coffee Packaging" },
+      { href: "/industries/snack-packaging", label: "Snack Packaging" },
+      { href: "/industries/nutritional-supplement-packaging", label: "Supplement Packaging" },
+      { href: "/industries/pet-food-packaging", label: "Pet Food Packaging" },
       { href: "/industries", label: "All Industries →" },
+      { href: "/applications", label: "All Applications →" },
     ],
   },
   {
     title: "Resources",
     links: [
       { href: "/about", label: "About Microflex" },
+      { href: "/packaging-spec-builder", label: "Packaging Spec Builder" },
+      { href: "/journal", label: "Packaging Journal" },
       { href: "/materials", label: "Materials & Finishes" },
       { href: "/printing", label: "Printing Options" },
       { href: "/artwork-guidelines", label: "Artwork Guidelines" },
