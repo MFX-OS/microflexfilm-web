@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { journalBriefs } from "@/data/journal";
+import { journalArticles } from "@/data/journalArticles";
 
-const cats = ["All", ...Array.from(new Set(journalBriefs.map((a) => a.cat)))];
+const cats = ["All", ...Array.from(new Set(journalArticles.map((a) => a.cat)))];
 
 export default function JournalIndex() {
   const [cat, setCat] = useState("All");
-  const list = cat === "All" ? journalBriefs : journalBriefs.filter((a) => a.cat === cat);
+  const list = cat === "All" ? journalArticles : journalArticles.filter((a) => a.cat === cat);
 
   return (
     <div>
@@ -29,26 +29,30 @@ export default function JournalIndex() {
         ))}
       </div>
       <p className="mb-5 text-sm text-muted">
-        {list.length} guide{list.length === 1 ? "" : "s"} in the publishing program — new
-        articles publish weekly. Want one prioritized?{" "}
-        <a href="/#contact" className="font-bold text-cyan underline">Tell us which.</a>
+        {list.length} guide{list.length === 1 ? "" : "s"} published — practical answers for
+        every stage of a flexible packaging project.
       </p>
       <div className="grid gap-3 md:grid-cols-2">
         {list.map((a) => (
-          <div
+          <a
             key={a.n}
-            className="rounded-2xl p-5"
-            style={{ border: "1px solid rgba(0,216,242,0.16)", background: "rgba(255,255,255,0.032)" }}
+            href={`/journal/${a.slug}`}
+            className="card !min-h-0 flex flex-col"
           >
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-cyan" style={{ border: "1px solid rgba(0,216,242,0.3)", background: "rgba(0,216,242,0.05)" }}>
+            <div className="mb-2">
+              <span
+                className="rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-cyan"
+                style={{ border: "1px solid rgba(0,216,242,0.3)", background: "rgba(0,216,242,0.05)" }}
+              >
                 {a.cat}
               </span>
-              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-dark">Coming soon</span>
             </div>
             <h3 className="text-base font-bold text-paper">{a.title}</h3>
-            {a.intro && <p className="mt-2 text-sm leading-relaxed text-muted">{a.intro.slice(0, 160)}…</p>}
-          </div>
+            <p className="mb-3 mt-2 text-sm leading-relaxed text-muted">{a.intro.slice(0, 150)}…</p>
+            <span className="mt-auto text-xs font-extrabold uppercase text-cyan" style={{ letterSpacing: "0.08em" }}>
+              Read the guide →
+            </span>
+          </a>
         ))}
       </div>
     </div>

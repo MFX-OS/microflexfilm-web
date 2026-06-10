@@ -28,11 +28,16 @@ const nextConfig: NextConfig = {
       "lawn-garden": "lawn-garden-seed-packaging",
       "rice-grains-pasta": "rice-grain-packaging",
     };
-    return Object.entries(map).map(([from, to]) => ({
+    const industryRedirects = Object.entries(map).map(([from, to]) => ({
       source: `/industries/${from}`,
       destination: `/industries/${to}`,
       permanent: true,
     }));
+    return [
+      ...industryRedirects,
+      { source: "/packaging-engineering-journal", destination: "/journal", permanent: true },
+      { source: "/packaging-engineering-journal/:slug", destination: "/journal/:slug", permanent: true },
+    ];
   },
   images: {
     remotePatterns: [
