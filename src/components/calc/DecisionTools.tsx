@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Field, Result, Disclaimer, inputStyle } from "./shared";
+import { MFX_LOGO_WHITE, MFX_LOGO_ASPECT } from "@/lib/brandLogoData";
 
 /* ---------------- Format finder quiz ---------------- */
 
@@ -846,8 +847,7 @@ export function DieLineGenerator() {
   const brandBand = `
   <rect width="${planW}" height="${bandH}" fill="#061421"/>
   <rect x="0" y="${bandH - 3}" width="${planW}" height="3" fill="#00d8f2"/>
-  <text x="${pad - bleed * S}" y="${bandH / 2 + 1}" font-size="21" font-weight="bold" fill="#ffffff" letter-spacing="3">MICROFLEX<tspan fill="#00d8f2">.</tspan></text>
-  <text x="${pad - bleed * S}" y="${bandH / 2 + 17}" font-size="8" fill="#7fa6bd" letter-spacing="3.5">FILM CORPORATION · RIVERSIDE, CA</text>
+  <image href="${MFX_LOGO_WHITE}" x="${pad - bleed * S}" y="${(bandH - 40) / 2}" height="40" width="${40 * MFX_LOGO_ASPECT}" preserveAspectRatio="xMinYMid meet"/>
   <text x="${planW - 28}" y="${bandH / 2 + 1}" text-anchor="end" font-size="12" font-weight="bold" fill="#00d8f2" letter-spacing="3">DIELINE PLANNING TEMPLATE</text>
   <text x="${planW - 28}" y="${bandH / 2 + 17}" text-anchor="end" font-size="8.5" fill="#7fa6bd" letter-spacing="1.5">GENERATED AT MICROFLEXFILM.COM/CALCULATORS</text>`;
 
@@ -1068,7 +1068,7 @@ export function DieLineGenerator() {
   <rect width="${AW}" height="${AH + TOPB}" fill="white"/>
   <rect width="${AW}" height="${TOPB}" fill="#061421"/>
   <rect y="${TOPB - 3}" width="${AW}" height="3" fill="#00d8f2"/>
-  <text x="${FX - 40}" y="${TOPB / 2 + 5}" font-size="17" font-weight="bold" fill="#ffffff" letter-spacing="3">MICROFLEX<tspan fill="#00d8f2">.</tspan> <tspan font-size="8" fill="#7fa6bd" letter-spacing="2.5">FILM CORPORATION</tspan></text>
+  <image href="${MFX_LOGO_WHITE}" x="${FX - 40}" y="${(TOPB - 32) / 2}" height="32" width="${32 * MFX_LOGO_ASPECT}" preserveAspectRatio="xMinYMid meet"/>
   <text x="${AW - 40}" y="${TOPB / 2 + 5}" text-anchor="end" font-size="10" font-weight="bold" fill="#00d8f2" letter-spacing="2">MICROFLEXFILM.COM · 909.360.9066</text>
   <g transform="translate(0, ${TOPB})">${head}
   ${p.join("\n  ")}
