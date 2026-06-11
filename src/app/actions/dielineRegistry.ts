@@ -92,6 +92,23 @@ export async function registerDielineDownload(
     return { ok: false, error: "Download limit reached — try again later or contact info@microflexfilm.com." };
   }
 
+  // Duplicate-click lock: identical registration within 10 minutes returns the
+  // original registry number — one row, one email, no matter how many clicks.
+  const DEDUPE_WINDOW_MS = 10 * 60 * 1000;
+  const dedupeKey = sha256([email, input.dielineId, customer, sku, String(input.sendEmail)].join("|"));
+  const dedupeRef = adminDb.collection("dieline_dedupe").doc(dedupeKey);
+  try {
+    const existing = await dedupeRef.get();
+    const data = existing.data();
+    if (existing.exists && Date.now() - (data?.at ?? 0) < DEDUPE_WINDOW_MS && data?.registryNo) {
+      return { ok: true, registryNo: data.registryNo as string };
+    }
+    // Claim the lock immediately so a racing second click waits on this one
+    await dedupeRef.set({ at: Date.now(), registryNo: null });
+  } catch (err) {
+    console.error("Dieline dedupe check failed (continuing):", err);
+  }
+
   const files: { planning?: string; approval?: string } = {};
   if (input.files.planning && svgIsSafe(input.files.planning)) files.planning = input.files.planning;
   if (input.files.approval && svgIsSafe(input.files.approval)) files.approval = input.files.approval;
@@ -139,6 +156,9 @@ export async function registerDielineDownload(
     console.error("Registry write failed:", err);
     return { ok: false, error: "Could not save your request — please try again." };
   }
+
+  // Complete the dedupe lock with the issued registry number
+  await dedupeRef.set({ at: Date.now(), registryNo }).catch(() => {});
 
   // Email files to the requester (best effort) + lead alert to the team
   if (input.sendEmail) {

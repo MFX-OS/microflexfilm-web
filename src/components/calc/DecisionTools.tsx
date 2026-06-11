@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Field, Result, Disclaimer, inputStyle } from "./shared";
 import { MFX_LOGO_WHITE, MFX_LOGO_ASPECT } from "@/lib/brandLogoData";
 import { registerDielineDownload } from "@/app/actions/dielineRegistry";
@@ -509,6 +509,7 @@ export function DieLineGenerator() {
   const [gateError, setGateError] = useState<string | null>(null);
   const [registryNo, setRegistryNo] = useState<string | null>(null);
   const [lastRegisteredId, setLastRegisteredId] = useState<string | null>(null);
+  const gateInFlight = useRef(false);
 
   function pickType(id: string) {
     const t = DIELINE_TYPES.find((x) => x.id === id)!;
@@ -1151,7 +1152,9 @@ export function DieLineGenerator() {
   }
 
   async function submitGate() {
-    if (!valid) return;
+    // Ref guard fires synchronously — double-clicks can't race the re-render
+    if (!valid || gateInFlight.current || registryNo) return;
+    gateInFlight.current = true;
     setGateBusy(true);
     setGateError(null);
     try {
@@ -1181,6 +1184,7 @@ export function DieLineGenerator() {
     } catch {
       setGateError("Something went wrong — please try again.");
     } finally {
+      gateInFlight.current = false;
       setGateBusy(false);
     }
   }
