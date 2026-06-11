@@ -409,9 +409,9 @@ export function FinishVisualizer() {
 /* ---------------- Die-line template generator ---------------- */
 
 const SEAL_WIDTHS = [
-  { label: '1/4" seals', v: 0.25 },
-  { label: '3/8" seals', v: 0.375 },
-  { label: '1/2" seals', v: 0.5 },
+  { label: '1/4"', v: 0.25 },
+  { label: '3/8"', v: 0.375 },
+  { label: '1/2"', v: 0.5 },
 ];
 
 type DielineType = {
@@ -882,7 +882,7 @@ export function DieLineGenerator() {
       )
       .join("\n  ");
 
-  const specLine = `${T.name.split("·")[1]?.trim() ?? T.name} · ${fmtDim(W)} × ${fmtDim(H)}${needsG ? ` + ${fmtDim(G)} gusset` : ""}${isPanel || T.base === "lid" ? ` · ${SEAL_WIDTHS.find((x) => x.v === sealW)?.label ?? ""}` : ""}${zipOn ? ` · zipper ℄ ${fmtDim(ZIP_CL_FROM_TOP)} from top · top seal ${fmtDim(topSealW)}` : ""} · bleed ${fmtDim(bleed)} · safe ${fmtDim(safety)}`;
+  const specLine = `${T.name.split("·")[1]?.trim() ?? T.name} · ${fmtDim(W)} × ${fmtDim(H)}${needsG ? ` + ${fmtDim(G)} gusset` : ""}${isPanel || T.base === "lid" ? ` · ${SEAL_WIDTHS.find((x) => x.v === sealW)?.label ?? ""} seals` : ""}${zipOn ? ` · zipper ℄ ${fmtDim(ZIP_CL_FROM_TOP)} from top · top seal ${fmtDim(topSealW)}` : ""} · bleed ${fmtDim(bleed)} · safe ${fmtDim(safety)}`;
 
 
   /* ===== Final Approval Sheet (production-style download) ===== */
@@ -1159,135 +1159,175 @@ export function DieLineGenerator() {
       </button>
     ) : null;
 
-  const LevelHead = ({ n, title, hint }: { n: string; title: string; hint: string }) => (
-    <div className="flex flex-wrap items-baseline gap-3">
-      <span className="kicker text-[10px]">Level {n}</span>
-      <span className="text-sm font-black text-paper">{title}</span>
-      <span className="text-xs text-muted-dark">{hint}</span>
+  const Panel = ({
+    level,
+    title,
+    hint,
+    right,
+    children,
+  }: {
+    level: string;
+    title: string;
+    hint: string;
+    right?: React.ReactNode;
+    children: React.ReactNode;
+  }) => (
+    <div
+      className="rounded-3xl p-5 md:p-6"
+      style={{ border: "1px solid rgba(0,216,242,0.18)", background: "rgba(2,5,9,0.35)" }}
+    >
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <span
+          className="rounded-md px-2.5 py-1 font-mono text-[10px] font-black tracking-widest"
+          style={{ background: "rgba(0,216,242,0.14)", color: "#34e3f5", border: "1px solid rgba(0,216,242,0.4)" }}
+        >
+          LEVEL {level}
+        </span>
+        <span className="text-sm font-black text-paper">{title}</span>
+        <span className="hidden text-xs text-muted-dark sm:inline">{hint}</span>
+        {right && <span className="ml-auto">{right}</span>}
+      </div>
+      {children}
     </div>
   );
 
+  const unitsToggle = (
+    <span className="flex gap-1.5">
+      {(["in", "mm"] as const).map((u) => (
+        <button
+          key={u}
+          type="button"
+          onClick={() => setUnit(u)}
+          className="rounded-full px-3.5 py-1.5 text-[11px] font-extrabold uppercase transition"
+          style={{
+            border: `1px solid ${unit === u ? "rgba(0,216,242,0.7)" : "rgba(255,255,255,0.14)"}`,
+            background: unit === u ? "rgba(0,216,242,0.12)" : "rgba(255,255,255,0.03)",
+            color: unit === u ? "#34e3f5" : "#a9b9c8",
+          }}
+        >
+          {u}
+        </button>
+      ))}
+    </span>
+  );
+
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-5">
       {/* ===== LEVEL 1 ===== */}
-      <div className="grid gap-3">
-        <LevelHead n="1" title="Core Package Format" hint="the dieline family" />
-        <div className="grid gap-4 sm:grid-cols-[1.4fr,1fr]">
-          <select style={inputStyle} value={typeId} onChange={(e) => pickType(e.target.value)}>
-            {DIELINE_TYPES.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
+      <Panel level="1" title="Core Package Format" hint="the dieline family">
+        <div className="grid items-end gap-4 sm:grid-cols-[1.5fr,1fr]">
+          <Field label="Dieline family (20 types)">
+            <select style={inputStyle} value={typeId} onChange={(e) => pickType(e.target.value)}>
+              {DIELINE_TYPES.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </Field>
           <div
-            className="rounded-2xl px-4 py-3"
+            className="rounded-xl px-4 py-3"
             style={{ border: "1px solid rgba(0,216,242,0.2)", background: "rgba(0,216,242,0.04)" }}
           >
-            <span className="kicker mr-2 text-[10px]">Common use</span>
-            <span className="text-sm text-muted-light">{T.use}</span>
+            <span className="kicker mr-2 text-[9px]">Common use</span>
+            <span className="text-xs leading-snug text-muted-light">{T.use}</span>
           </div>
         </div>
-        {T.note && (
-          <p className="rounded-xl p-3 text-xs leading-relaxed text-muted" style={{ border: "1px solid rgba(0,216,242,0.18)", background: "rgba(255,255,255,0.03)" }}>
-            {T.note}
-          </p>
-        )}
-      </div>
+        {T.note && <p className="mt-3 text-xs leading-relaxed text-muted-dark">{T.note}</p>}
+      </Panel>
 
       {/* ===== LEVEL 2 ===== */}
       {isPanel && (
-        <div className="grid gap-3">
-          <LevelHead n="2" title="Structural Variation" hint="features that create dieline versions" />
-          <div className="flex flex-wrap items-center gap-2">
-            {T.zipperOk && (
-              <select
-                style={{ ...inputStyle, width: "auto", padding: "8px 12px", fontSize: 12 }}
-                value={zipperType}
-                onChange={(e) => setZipperType(e.target.value as typeof zipperType)}
-              >
-                <option value="none">No zipper</option>
-                <option value="standard">Zipper</option>
-                <option value="cr">Child-resistant zipper</option>
-              </select>
+        <Panel level="2" title="Structural Variation" hint="features that create dieline versions">
+          <div className="grid gap-4 sm:grid-cols-3">
+            {T.zipperOk ? (
+              <Field label="Zipper">
+                <select style={inputStyle} value={zipperType} onChange={(e) => setZipperType(e.target.value as typeof zipperType)}>
+                  <option value="none">None</option>
+                  <option value="standard">Standard zipper</option>
+                  <option value="cr">Child-resistant zipper</option>
+                </select>
+              </Field>
+            ) : (
+              <Field label="Zipper">
+                <select style={{ ...inputStyle, opacity: 0.45 }} disabled>
+                  <option>Not available for this format</option>
+                </select>
+              </Field>
             )}
-            {!T.header && (
-              <select
-                style={{ ...inputStyle, width: "auto", padding: "8px 12px", fontSize: 12 }}
-                value={hangType}
-                onChange={(e) => setHangType(e.target.value as typeof hangType)}
-              >
-                <option value="none">No hang hole</option>
-                <option value="round">Round hang hole</option>
-                <option value="euro">Euro slot</option>
-              </select>
-            )}
-            <select
-              style={{ ...inputStyle, width: "auto", padding: "8px 12px", fontSize: 12 }}
-              value={windowType}
-              onChange={(e) => setWindowType(e.target.value as typeof windowType)}
-            >
-              <option value="none">No window</option>
-              <option value="window">Registered window</option>
-              <option value="clear-panel">Clear panel</option>
-            </select>
-            {toggle("Tear notches", tearNotch, setTearNotch)}
-            {toggle("Round corners", roundCorners, setRoundCorners)}
-            {toggle("Spout", spout || Boolean(T.spoutDefault), setSpout, Boolean(T.spoutOk) && !T.spoutDefault)}
-            {toggle("Valve", valve, setValve, Boolean(T.valveOk))}
-            {toggle("Laser score", laserScore, setLaserScore)}
-            {toggle("Easy-peel seal", easyPeel, setEasyPeel)}
-            {toggle("Tamper-evident", tamper, setTamper)}
-          </div>
-          {zipOn && (
-            <p className="rounded-xl p-3 text-xs leading-relaxed text-muted" style={{ border: "1px solid rgba(0,216,242,0.18)", background: "rgba(255,255,255,0.03)" }}>
-              <span className="font-bold text-cyan">Zipper geometry (production standard):</span>{" "}
-              zipper centerline sits {fmtDim(ZIP_CL_FROM_TOP)} from the top — the top {fmtDim(ZIP_CL_FROM_TOP)} is a
-              functional sealed top. Top seal is {fmtDim(0.5)} ({fmtDim(0.75)} with a hang hole) so the tear
-              notch has working room between seal and zipper — tighter than that and the
-              notch tears without opening the bag.
-              {H > 0 && H < 2.5 && (
-                <span className="font-bold" style={{ color: "#ff9d9d" }}>
-                  {" "}This pouch is too short for a functional zipper top — increase the height.
-                </span>
+            <Field label="Hang hole">
+              {T.header ? (
+                <select style={{ ...inputStyle, opacity: 0.45 }} disabled>
+                  <option>Built into header</option>
+                </select>
+              ) : (
+                <select style={inputStyle} value={hangType} onChange={(e) => setHangType(e.target.value as typeof hangType)}>
+                  <option value="none">None</option>
+                  <option value="round">Round hang hole</option>
+                  <option value="euro">Euro slot</option>
+                </select>
               )}
-            </p>
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-muted-dark">Material flags:</span>
-            {toggle("Spot varnish", spotVarnish, setSpotVarnish)}
-            {toggle("Foil / metalized", foil, setFoil)}
+            </Field>
+            <Field label="Window">
+              <select style={inputStyle} value={windowType} onChange={(e) => setWindowType(e.target.value as typeof windowType)}>
+                <option value="none">None</option>
+                <option value="window">Registered window</option>
+                <option value="clear-panel">Clear panel</option>
+              </select>
+            </Field>
           </div>
-        </div>
+
+          <div className="mt-5">
+            <div className="kicker mb-2.5 text-[9px]">Add-on features</div>
+            <div className="flex flex-wrap gap-2">
+              {toggle("Tear notches", tearNotch, setTearNotch)}
+              {toggle("Round corners", roundCorners, setRoundCorners)}
+              {toggle("Spout", spout || Boolean(T.spoutDefault), setSpout, Boolean(T.spoutOk) && !T.spoutDefault)}
+              {toggle("Valve", valve, setValve, Boolean(T.valveOk))}
+              {toggle("Laser score", laserScore, setLaserScore)}
+              {toggle("Easy-peel seal", easyPeel, setEasyPeel)}
+              {toggle("Tamper-evident", tamper, setTamper)}
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <div className="kicker mb-2.5 text-[9px]">Material flags (noted on template, not drawn)</div>
+            <div className="flex flex-wrap gap-2">
+              {toggle("Spot varnish", spotVarnish, setSpotVarnish)}
+              {toggle("Foil / metalized", foil, setFoil)}
+            </div>
+          </div>
+
+          {zipOn && (
+            <div
+              className="mt-5 rounded-xl px-4 py-3"
+              style={{ border: "1px solid rgba(0,216,242,0.18)", background: "rgba(0,216,242,0.04)" }}
+            >
+              <p className="text-xs leading-relaxed text-muted">
+                <span className="font-bold text-cyan">Zipper geometry (production standard):</span>{" "}
+                centerline {fmtDim(ZIP_CL_FROM_TOP)} from the top — a functional sealed top with a{" "}
+                {fmtDim(topSealW)} top seal{hangOn ? " (hang hole)" : ""} and working room so the
+                tear notch opens the bag.
+                {H > 0 && H < 2.5 && (
+                  <span className="font-bold" style={{ color: "#ff9d9d" }}>
+                    {" "}This pouch is too short for a functional zipper top — increase the height.
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
+        </Panel>
       )}
 
       {/* ===== LEVEL 3 ===== */}
-      <div className="grid gap-3">
-        <LevelHead n="3" title="Production-Specific Version" hint="exact dimensions & press details" />
-        <div className="flex flex-wrap items-center gap-2">
-          {(["in", "mm"] as const).map((u) => (
-            <button
-              key={u}
-              type="button"
-              onClick={() => setUnit(u)}
-              className="rounded-full px-3 py-2 text-xs font-extrabold uppercase transition"
-              style={{
-                border: `1px solid ${unit === u ? "rgba(0,216,242,0.7)" : "rgba(255,255,255,0.14)"}`,
-                background: unit === u ? "rgba(0,216,242,0.12)" : "rgba(255,255,255,0.03)",
-                color: unit === u ? "#34e3f5" : "#a9b9c8",
-              }}
-            >
-              {u}
-            </button>
-          ))}
-        </div>
-        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <Panel level="3" title="Production-Specific Version" hint="exact dimensions & press details" right={unitsToggle}>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           <Field label={`${T.base === "web" ? "Web width" : T.base === "sleeve" ? "Layflat width" : "Width"} (${unit})`}>
             <input style={inputStyle} type="number" min="0" step={unit === "mm" ? 5 : 0.25} value={w} onChange={(e) => setW(e.target.value)} />
           </Field>
-          <Field label={`${T.base === "web" ? "Repeat" : T.base === "sleeve" ? "Cut length" : "Height"} (${unit})`}>
+          <Field label={`${T.base === "web" ? "Print repeat" : T.base === "sleeve" ? "Cut length" : "Height"} (${unit})`}>
             <input style={inputStyle} type="number" min="0" step={unit === "mm" ? 5 : 0.25} value={h} onChange={(e) => setH(e.target.value)} />
           </Field>
           {needsG && (
-            <Field label={`${T.sideGusset ? "Side gusset" : "Gusset depth"} (${unit})`}>
+            <Field label={`${T.sideGusset ? "Side gusset" : "Gusset"} (${unit})`}>
               <input style={inputStyle} type="number" min="0" step={unit === "mm" ? 5 : 0.25} value={g} onChange={(e) => setG(e.target.value)} />
             </Field>
           )}
@@ -1295,7 +1335,7 @@ export function DieLineGenerator() {
             <Field label="Seal size">
               <select style={inputStyle} value={sealW} onChange={(e) => setSealW(parseFloat(e.target.value))}>
                 {SEAL_WIDTHS.map((x) => (
-                  <option key={x.v} value={x.v}>{x.label}</option>
+                  <option key={x.v} value={x.v}>{x.label} seals</option>
                 ))}
               </select>
             </Field>
@@ -1303,11 +1343,11 @@ export function DieLineGenerator() {
           <Field label="Bleed (in)">
             <input style={inputStyle} type="number" min="0.0625" max="0.5" step="0.0625" value={bleedIn} onChange={(e) => setBleedIn(e.target.value)} />
           </Field>
-          <Field label="Safe zone inset (in)">
+          <Field label="Safe zone (in)">
             <input style={inputStyle} type="number" min="0.0625" max="0.5" step="0.0625" value={safetyIn} onChange={(e) => setSafetyIn(e.target.value)} />
           </Field>
           {isPanel && (
-            <Field label="Machine fill direction">
+            <Field label="Fill direction">
               <select style={inputStyle} value={fillDir} onChange={(e) => setFillDir(e.target.value as typeof fillDir)}>
                 <option value="top">Top fill</option>
                 <option value="bottom">Bottom fill</option>
@@ -1315,9 +1355,9 @@ export function DieLineGenerator() {
             </Field>
           )}
           {isPanel && (
-            <Field label="Front/back art orientation">
+            <Field label="Art orientation">
               <select style={inputStyle} value={artOrient} onChange={(e) => setArtOrient(e.target.value as typeof artOrient)}>
-                <option value="standard">Same orientation</option>
+                <option value="standard">Front/back same</option>
                 <option value="back-inverted">Back inverted</option>
               </select>
             </Field>
@@ -1340,18 +1380,21 @@ export function DieLineGenerator() {
             </>
           )}
         </div>
-      </div>
+      </Panel>
 
-      {/* Output mode */}
-      {approvalAvailable && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-extrabold uppercase tracking-widest text-muted-dark">Output:</span>
-          {(
-            [
-              ["plan", "Planning Template"],
-              ["approval", "Final Approval Sheet"],
-            ] as const
-          ).map(([id, label]) => (
+      {/* ===== Output ===== */}
+      <div
+        className="flex flex-wrap items-center gap-3 rounded-3xl p-4 md:px-6"
+        style={{ border: "1px solid rgba(0,216,242,0.18)", background: "rgba(2,5,9,0.35)" }}
+      >
+        <span className="kicker text-[9px]">Output</span>
+        {(
+          [
+            ["plan", "Planning Template"],
+            ["approval", "Final Approval Sheet"],
+          ] as const
+        ).map(([id, label]) =>
+          id === "approval" && !approvalAvailable ? null : (
             <button
               key={id}
               type="button"
@@ -1365,12 +1408,10 @@ export function DieLineGenerator() {
             >
               {label}
             </button>
-          ))}
-          {outMode === "approval" && (
-            <span className="font-mono text-[11px] text-muted">ID: {dielineId}</span>
-          )}
-        </div>
-      )}
+          )
+        )}
+        <span className="ml-auto font-mono text-[11px] text-muted">{dielineId}</span>
+      </div>
 
       {valid ? (
         <div className="overflow-x-auto rounded-2xl bg-white p-2" style={{ border: "1px solid rgba(255,255,255,0.2)" }}>
@@ -1393,10 +1434,9 @@ export function DieLineGenerator() {
       </div>
       <Disclaimer>
         One core format multiplies into many dieline versions — Level 1 picks the family,
-        Level 2 adds the structural features (zipper, notch, window, spout, score, and more),
-        and Level 3 pins the production-specific numbers: exact size, seal width, bleed, Safe
-        Zone, fill direction, unwind, and registration. Production die lines confirm machine
-        compatibility — request one from your specialist before final artwork.
+        Level 2 adds the structural features, and Level 3 pins the production-specific
+        numbers. Production die lines confirm machine compatibility — request one from your
+        specialist before final artwork.
       </Disclaimer>
     </div>
   );
