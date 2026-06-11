@@ -955,7 +955,7 @@ export function DieLineGenerator() {
       ["Print method", printMethod],
       ["Color mode", colorMode],
       ["Minimum font size", "4 pt positive · 6 pt reversed"],
-      ["Barcode requirement", 'UPC ≥ 80% magnification · 0.125" quiet zone'],
+      ["Barcode requirement", 'UPC min 80% magnification · 0.125" quiet zone'],
       ["Revision", "v001"],
       ["Date created", new Date().toLocaleDateString("en-US")],
       ["Prepared by", preparedBy.trim() || "Microflex Dieline Generator"],
@@ -990,7 +990,7 @@ export function DieLineGenerator() {
       if (T.bottomGusset) {
         p.push(`<rect x="${L(0)}" y="${Ty(H - gussetH)}" width="${W * AS}" height="${gussetH * AS}" fill="${sealFill}"/>`);
         p.push(`<line x1="${L(0)}" y1="${Ty(H - gussetH)}" x2="${L(W)}" y2="${Ty(H - gussetH)}" stroke="#9333ea" stroke-width="2" stroke-dasharray="12 7"/>`);
-        if (panelPx >= 280) p.push(`<text x="${L(W / 2)}" y="${Ty(H - gussetH) - 6}" text-anchor="middle" font-size="11" fill="#16a34a" letter-spacing="1">··· BOTTOM GUSSET FOLD / HALF GUSSET AREA — ${fmtA(gussetH)} ···</text>`);
+        if (panelPx >= 280) p.push(`<text x="${L(W / 2)}" y="${Ty(H - gussetH) - 6}" text-anchor="middle" font-size="11" fill="#16a34a">··· BOTTOM GUSSET FOLD / HALF GUSSET AREA — ${fmtA(gussetH)} ···</text>`);
       }
       // hang slot (optional)
       if (hangOn) {
@@ -1015,7 +1015,7 @@ export function DieLineGenerator() {
         p.push(`<path d="M ${L(0)} ${Ty(notchPosA) - 8} l 13 8 l -13 8 Z" fill="#dc2626"/>`);
         p.push(`<path d="M ${L(W)} ${Ty(notchPosA) - 8} l -13 8 l 13 8 Z" fill="#dc2626"/>`);
         if (!isBack) {
-          const tnx = L(W) + (zipOn ? 36 : 14);
+          const tnx = L(W) + (zipOn ? 48 : 14);
           p.push(`<line x1="${L(W) + 2}" y1="${Ty(notchPosA)}" x2="${tnx - 4}" y2="${Ty(notchPosA)}" stroke="#dc2626" stroke-width="1"/>`);
           p.push(`<text x="${tnx}" y="${Ty(notchPosA) + 3.5}" font-size="10" font-weight="bold" fill="#dc2626">TEAR NOTCHES</text>`);
         }
@@ -1030,9 +1030,19 @@ export function DieLineGenerator() {
           p.push(`<line x1="${zx}" y1="${Ty(0)}" x2="${zx}" y2="${zcl}" stroke="#f59e0b" stroke-width="1.3"/>`);
           p.push(`<line x1="${zx - 4}" y1="${Ty(0)}" x2="${zx + 4}" y2="${Ty(0)}" stroke="#f59e0b" stroke-width="1.3"/>`);
           p.push(`<line x1="${zx - 4}" y1="${zcl}" x2="${zx + 4}" y2="${zcl}" stroke="#f59e0b" stroke-width="1.3"/>`);
-          p.push(`<text x="${zx + 12}" y="${(Ty(0) + zcl) / 2}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#b45309" transform="rotate(-90 ${zx + 12} ${(Ty(0) + zcl) / 2})">ZIPPER ℄ ${fmtA(ZIP_CL_FROM_TOP)}</text>`);
+          p.push(`<text x="${zx + 12}" y="${(Ty(0) + zcl) / 2}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#b45309" transform="rotate(-90 ${zx + 12} ${(Ty(0) + zcl) / 2})">ZIPPER CL ${fmtA(ZIP_CL_FROM_TOP)}</text>`);
         }
-        if (!narrow) p.push(`<text x="${L(W / 2)}" y="${Ty(zipTop + zipH / 2) + 4}" text-anchor="middle" font-size="12" font-weight="bold" fill="#f59e0b" letter-spacing="2">ZIPPER AREA${zipperType === "cr" ? " (CHILD-RESISTANT)" : ""}</text>`);
+        if (!narrow) {
+          // Width-fit: pick the longest label that fits inside the zipper track
+          const zipInnerPx = (W - (sealW + 0.1) * 2) * AS - 16;
+          const zipLabel =
+            zipperType === "cr"
+              ? ["ZIPPER AREA (CHILD-RESISTANT)", "ZIPPER AREA (CR)", "CR ZIPPER"].find(
+                  (t) => t.length * 12 * 0.66 <= zipInnerPx,
+                ) ?? "CR ZIPPER"
+              : "ZIPPER AREA";
+          p.push(`<text x="${L(W / 2)}" y="${Ty(zipTop + zipH / 2) + 4}" text-anchor="middle" font-size="12" font-weight="bold" fill="#f59e0b">${zipLabel}</text>`);
+        }
       }
       // safe zone
       const sB = T.bottomGusset ? H - gussetH - safety : safeBottom;
@@ -1040,12 +1050,12 @@ export function DieLineGenerator() {
       // panel center text — rotated single line on narrow formats
       const cy = Ty((safeTop + sB) / 2);
       if (narrow) {
-        p.push(`<text x="${L(W / 2) + 5}" y="${cy}" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937" letter-spacing="1.5" transform="rotate(-90 ${L(W / 2) + 5} ${cy})">${label} — ${fmtA(W)} W × ${fmtA(H)} H</text>`);
+        p.push(`<text x="${L(W / 2) + 5}" y="${cy}" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937" transform="rotate(-90 ${L(W / 2) + 5} ${cy})">${label} — ${fmtA(W)} W × ${fmtA(H)} H</text>`);
       } else {
         const availPx = (safeRight - safeLeft) * AS;
         const titleFs = Math.max(13, Math.min(24, availPx / 7));
-        p.push(`<text x="${L(W / 2)}" y="${cy - 26}" text-anchor="middle" font-size="${titleFs}" font-weight="bold" fill="#1f2937" letter-spacing="2">${label}</text>`);
-        p.push(`<text x="${L(W / 2)}" y="${cy + 6}" text-anchor="middle" font-size="13" fill="#374151" letter-spacing="1">FINISHED PANEL</text>`);
+        p.push(`<text x="${L(W / 2)}" y="${cy - 26}" text-anchor="middle" font-size="${titleFs}" font-weight="bold" fill="#1f2937">${label}</text>`);
+        p.push(`<text x="${L(W / 2)}" y="${cy + 6}" text-anchor="middle" font-size="13" fill="#374151">FINISHED PANEL</text>`);
         p.push(`<text x="${L(W / 2)}" y="${cy + 26}" text-anchor="middle" font-size="13" fill="#374151">${fmtA(W)} W × ${fmtA(H)} H</text>`);
       }
       // side seal labels
@@ -1084,7 +1094,7 @@ export function DieLineGenerator() {
       p.push(`<rect x="${RX - 8}" y="${ry - 8}" width="${colW + 16}" height="${gh + 16}" fill="none" stroke="#2563eb" stroke-width="1.6" stroke-dasharray="9 6"/>`);
       p.push(`<rect x="${RX}" y="${ry}" width="${colW}" height="${gh}" fill="white" stroke="#111" stroke-width="2.2"/>`);
       p.push(`<line x1="${RX}" y1="${ry + gh / 2 - 8}" x2="${RX + colW}" y2="${ry + gh / 2 - 8}" stroke="#9333ea" stroke-width="2" stroke-dasharray="12 7"/>`);
-      p.push(`<text x="${RX + colW / 2}" y="${ry + gh / 2 - 16}" text-anchor="middle" font-size="11" fill="#9333ea" letter-spacing="2">CENTER FOLD</text>`);
+      p.push(`<text x="${RX + colW / 2}" y="${ry + gh / 2 - 16}" text-anchor="middle" font-size="11" fill="#9333ea">CENTER FOLD</text>`);
       p.push(`<text x="${RX + colW / 2}" y="${ry + gh / 2 + 22}" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#111">TOTAL GUSSET DEPTH ${fmtA(G)}</text>`);
       p.push(`<text x="${RX + colW / 2}" y="${ry + gh / 2 + 40}" text-anchor="middle" font-size="11" fill="#374151">${fmtA(G / 2)} FRONT HALF + ${fmtA(G / 2)} BACK HALF</text>`);
       const gdy = ry + gh + 30;
@@ -1107,7 +1117,7 @@ export function DieLineGenerator() {
     if (hangOn) lg.push([`<circle cx="17" cy="0" r="6" fill="white" stroke="#6b7280" stroke-width="1.4"/>`, hangType === "euro" ? "EURO SLOT HANG HOLE" : "HANG HOLE"]);
     lg.push([`<rect x="10" y="-7" width="12" height="14" fill="#111"/>`, "EYE MARK / REGISTRATION"]);
     lg.forEach(([sw, label], i) => {
-      p.push(`<g transform="translate(${RX}, ${ry + i * 27})">${sw}<text x="48" y="4" font-size="12" fill="#111" letter-spacing="0.5">${label}</text></g>`);
+      p.push(`<g transform="translate(${RX}, ${ry + i * 27})">${sw}<text x="48" y="4" font-size="12" fill="#111">${label}</text></g>`);
     });
     ry += lg.length * 27 + 36;
     /* approval notes */
@@ -1122,7 +1132,7 @@ export function DieLineGenerator() {
     /* technical specification box */
     p.push(`<rect x="${RX - 8}" y="${ry}" width="${colW + 16}" height="${specBoxH}" fill="white" stroke="#111" stroke-width="1.6"/>`);
     p.push(`<rect x="${RX - 8}" y="${ry}" width="${colW + 16}" height="26" fill="#061421"/>`);
-    p.push(`<text x="${RX + 4}" y="${ry + 18}" font-size="12.5" font-weight="bold" fill="#ffffff" letter-spacing="1.5">TECHNICAL SPECIFICATION</text>`);
+    p.push(`<text x="${RX + 4}" y="${ry + 18}" font-size="12.5" font-weight="bold" fill="#ffffff">TECHNICAL SPECIFICATION</text>`);
     specRows.forEach(([label, value], i) => {
       const sy = ry + 44 + i * 18;
       if (i % 2 === 1) p.push(`<rect x="${RX - 8}" y="${sy - 13}" width="${colW + 16}" height="18" fill="#f8fafc"/>`);
@@ -1142,9 +1152,9 @@ export function DieLineGenerator() {
 
     /* header + id + footer */
     const head = `
-  <text x="${FX - 40}" y="56" font-size="${AW < 1500 ? 24 : 30}" font-weight="bold" fill="#111" letter-spacing="0.5">FINAL APPROVAL DIELINE — ${(T.name.split("·")[1] ?? T.name).trim().toUpperCase()}</text>
+  <text x="${FX - 40}" y="56" font-size="${AW < 1500 ? 24 : 30}" font-weight="bold" fill="#111">FINAL APPROVAL DIELINE — ${(T.name.split("·")[1] ?? T.name).trim().toUpperCase()}</text>
   <text x="${FX - 40}" y="82" font-size="13" fill="#374151">Production-ready approval layout: ${fmtA(W)} W × ${fmtA(H)} H${needsG ? `, ${fmtA(G)} bottom gusset` : ""}${zipOn ? ", zipper" : ""}${tearNotch ? ", tear notches" : ""}, bleed, safe zone, seal areas</text>
-  <text x="${FX - 40}" y="100" font-size="11" font-weight="bold" fill="#0087a8" letter-spacing="0.5">VIEW: FINISHED PANELS — FRONT &amp; BACK SHOWN SEPARATELY (NOT ROLL-FED FILM LAYOUT). Roll/web layout supplied with the production die line.</text>
+  <text x="${FX - 40}" y="100" font-size="11" font-weight="bold" fill="#0087a8">VIEW: FINISHED PANELS — FRONT &amp; BACK SHOWN SEPARATELY (NOT ROLL-FED FILM LAYOUT). Roll/web layout supplied with the production die line.</text>
   <rect x="${AW - 330}" y="34" width="280" height="46" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>
   <text x="${AW - 318}" y="53" font-size="11" font-weight="bold" fill="#111">MFX DIELINE ID</text>
   <text x="${AW - 318}" y="70" font-size="12" font-family="monospace" fill="#111">${dielineId}</text>`;
@@ -1162,7 +1172,7 @@ export function DieLineGenerator() {
   <rect width="${AW}" height="${TOPB}" fill="#061421"/>
   <rect y="${TOPB - 3}" width="${AW}" height="3" fill="#00d8f2"/>
   <image href="${MFX_LOGO_WHITE}" x="${FX - 40}" y="${(TOPB - 32) / 2}" height="32" width="${32 * MFX_LOGO_ASPECT}" preserveAspectRatio="xMinYMid meet"/>
-  <text x="${AW - 40}" y="${TOPB / 2 + 5}" text-anchor="end" font-size="10" font-weight="bold" fill="#00d8f2" letter-spacing="2">MICROFLEXFILM.COM · 909.360.9066</text>
+  <text x="${AW - 40}" y="${TOPB / 2 + 5}" text-anchor="end" font-size="10" font-weight="bold" fill="#00d8f2">MICROFLEXFILM.COM · 909.360.9066</text>
   <g transform="translate(0, ${TOPB})">${head}
   ${p.join("\n  ")}
   ${footer}
