@@ -958,18 +958,23 @@ export function DieLineGenerator() {
       if (tearNotch) {
         p.push(`<path d="M ${L(0)} ${Ty(notchPosA) - 8} l 13 8 l -13 8 Z" fill="#dc2626"/>`);
         p.push(`<path d="M ${L(W)} ${Ty(notchPosA) - 8} l -13 8 l 13 8 Z" fill="#dc2626"/>`);
-        if (!narrow) p.push(`<text x="${L(W / 2)}" y="${Ty(notchPosA) - 12}" text-anchor="middle" font-size="11" font-weight="bold" fill="#dc2626" letter-spacing="1">TEAR NOTCHES</text>`);
+        if (!isBack) {
+          const tnx = L(W) + (zipOn ? 36 : 14);
+          p.push(`<line x1="${L(W) + 2}" y1="${Ty(notchPosA)}" x2="${tnx - 4}" y2="${Ty(notchPosA)}" stroke="#dc2626" stroke-width="1"/>`);
+          p.push(`<text x="${tnx}" y="${Ty(notchPosA) + 3.5}" font-size="10" font-weight="bold" fill="#dc2626">TEAR NOTCHES</text>`);
+        }
       }
       // zipper — centerline dimension from top edge (front panel only)
       if (zipOn) {
         p.push(`<rect x="${L(sealW + 0.1)}" y="${Ty(zipTop)}" width="${(W - (sealW + 0.1) * 2) * AS}" height="${zipH * AS}" fill="none" stroke="#f59e0b" stroke-width="2.4"/>`);
         if (!isBack) {
+          // right-side annotation column: zipper centerline dimension
           const zcl = Ty(bodyTop + ZIP_CL_FROM_TOP);
-          const zx = L(0) - 14;
+          const zx = L(W) + 16;
           p.push(`<line x1="${zx}" y1="${Ty(0)}" x2="${zx}" y2="${zcl}" stroke="#f59e0b" stroke-width="1.3"/>`);
           p.push(`<line x1="${zx - 4}" y1="${Ty(0)}" x2="${zx + 4}" y2="${Ty(0)}" stroke="#f59e0b" stroke-width="1.3"/>`);
           p.push(`<line x1="${zx - 4}" y1="${zcl}" x2="${zx + 4}" y2="${zcl}" stroke="#f59e0b" stroke-width="1.3"/>`);
-          p.push(`<text x="${zx - 6}" y="${(Ty(0) + zcl) / 2}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#b45309" transform="rotate(-90 ${zx - 6} ${(Ty(0) + zcl) / 2})">ZIPPER ℄ ${fmtA(ZIP_CL_FROM_TOP)}</text>`);
+          p.push(`<text x="${zx + 12}" y="${(Ty(0) + zcl) / 2}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#b45309" transform="rotate(-90 ${zx + 12} ${(Ty(0) + zcl) / 2})">ZIPPER ℄ ${fmtA(ZIP_CL_FROM_TOP)}</text>`);
         }
         if (!narrow) p.push(`<text x="${L(W / 2)}" y="${Ty(zipTop + zipH / 2) + 4}" text-anchor="middle" font-size="12" font-weight="bold" fill="#f59e0b" letter-spacing="2">ZIPPER AREA${zipperType === "cr" ? " (CHILD-RESISTANT)" : ""}</text>`);
       }
