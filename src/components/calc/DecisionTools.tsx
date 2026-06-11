@@ -409,6 +409,12 @@ export function FinishVisualizer() {
 
 /* ---------------- Die-line template generator ---------------- */
 
+/** Escape bare ampersands so downloaded SVGs are valid standalone XML
+ *  (browser previews parse as HTML and forgive them; XML parsers do not). */
+function xmlSafe(svg: string): string {
+  return svg.replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, "&amp;");
+}
+
 const SEAL_WIDTHS = [
   { label: '1/4"', v: 0.25 },
   { label: '3/8"', v: 0.375 },
@@ -1097,7 +1103,7 @@ export function DieLineGenerator() {
     const footer = `<text x="${FX - 40}" y="${AH - 18}" font-size="11.5" fill="#111">Production rule: all critical artwork must remain inside the safe zone and outside seal/fold/zipper/notch areas. Dieline layers should remain vector, named, and locked before customer proofing.</text>`;
 
     const TOPB = 48;
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${AW} ${AH + TOPB}" font-family="Helvetica, Arial, sans-serif">
+    return xmlSafe(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${AW} ${AH + TOPB}" font-family="Helvetica, Arial, sans-serif">
   <defs>
     <marker id="arrL" markerWidth="10" markerHeight="10" refX="2" refY="3" orient="auto"><path d="M8 0 L2 3 L8 6" fill="none" stroke="#111" stroke-width="1.4"/></marker>
     <marker id="arrR" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="none" stroke="#111" stroke-width="1.4"/></marker>
@@ -1113,12 +1119,12 @@ export function DieLineGenerator() {
   ${p.join("\n  ")}
   ${footer}
   </g>
-</svg>`;
+</svg>`);
   }
 
   
   const planningSvg = valid
-    ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${planW} ${planH}" font-family="Helvetica, Arial, sans-serif">
+    ? xmlSafe(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${planW} ${planH}" font-family="Helvetica, Arial, sans-serif">
   <defs>
     <pattern id="sealhatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
       <rect width="7" height="7" fill="rgba(245,158,11,0.09)"/>
@@ -1131,7 +1137,7 @@ export function DieLineGenerator() {
   <g transform="translate(${legendX}, ${legendYpos})">
   ${sideLegend ? `<text x="0" y="-6" font-size="10" font-weight="bold" fill="#0087a8" letter-spacing="2">LEGEND</text><g transform="translate(0, 14)">${legendSvg}</g>` : legendSvg}
   </g>${brandFoot}
-</svg>`
+</svg>`)
     : "";
 
   const approvalAvailable = isPanel;
