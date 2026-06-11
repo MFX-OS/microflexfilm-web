@@ -499,6 +499,10 @@ export function DieLineGenerator() {
   const [unwind, setUnwind] = useState(UNWINDS[0]);
   const [eyeMarkPos, setEyeMarkPos] = useState<"left" | "right">("left");
   const [artOrient, setArtOrient] = useState<"standard" | "back-inverted">("standard");
+  const [matStructure, setMatStructure] = useState("");
+  const [printMethod, setPrintMethod] = useState("TBD — confirm with Microflex");
+  const [colorMode, setColorMode] = useState("CMYK");
+  const [preparedBy, setPreparedBy] = useState("");
   const [outMode, setOutMode] = useState<"plan" | "approval">("plan");
   // Lead gate: files unlock after customer/SKU/email are registered
   const [leadCustomer, setLeadCustomer] = useState("");
@@ -929,7 +933,34 @@ export function DieLineGenerator() {
     const colW = 400;
     const panelBottom = PY + H * AS;
     const AW = Math.max(RX + colW + 60, 1380);
-    const AH = Math.max(panelBottom + 300, PY + 760);
+
+    // Technical specification rows (computed + operator-entered)
+    const bottomSealSpec = T.bottomGusset
+      ? "Gusset fold — no bottom seal line"
+      : T.sealBottom
+        ? fmtA(sealW)
+        : "—";
+    const sideSealSpec = T.sealSides ? fmtA(sealW) : T.fin ? `Fin seal on reverse (${T.fin === "lap" ? "lap" : "fin"})` : "—";
+    const specRows: [string, string][] = [
+      ["Finished size", `${fmtA(W)} W × ${fmtA(H)} H${needsG ? ` + ${fmtA(G)} gusset` : ""}`],
+      ["Total flat size w/ bleed", `${fmtA(W + bleed * 2)} W × ${fmtA(H + bleed * 2)} H (${fmtA(bleed)} bleed all sides)`],
+      ["Top seal", T.sealTop ? fmtA(topSealW) : "—"],
+      ["Bottom seal", bottomSealSpec],
+      ["Side seal / fin seal", sideSealSpec],
+      ...(zipOn ? [["Zipper centerline", `${fmtA(ZIP_CL_FROM_TOP)} from top edge`] as [string, string]] : []),
+      ["Material structure", matStructure.trim() || "TBD — confirm with Microflex"],
+      ["Print method", printMethod],
+      ["Color mode", colorMode],
+      ["Minimum font size", "4 pt positive · 6 pt reversed"],
+      ["Barcode requirement", 'UPC ≥ 80% magnification · 0.125" quiet zone'],
+      ["Revision", "v001"],
+      ["Date created", new Date().toLocaleDateString("en-US")],
+      ["Prepared by", preparedBy.trim() || "Microflex Dieline Generator"],
+    ];
+    const specBoxH = specRows.length * 18 + 42;
+    const rightColEstimate =
+      (T.bottomGusset ? 230 : 0) + 9 * 27 + 90 + 120 + specBoxH + 80;
+    const AH = Math.max(panelBottom + 300, PY + 760, PY + rightColEstimate);
     const p: string[] = [];
 
     const sealFill = "rgba(248,180,180,0.55)";
@@ -1083,6 +1114,18 @@ export function DieLineGenerator() {
     p.push(`<text x="${RX + 8}" y="${ry + 44}" font-size="10.5" fill="#334155">APPROVAL CHECK: confirm finished size, zipper, notch location,</text>`);
     p.push(`<text x="${RX + 8}" y="${ry + 59}" font-size="10.5" fill="#334155">seal zones, gusset, bleed, safe zone, eye mark need, and</text>`);
     p.push(`<text x="${RX + 8}" y="${ry + 74}" font-size="10.5" fill="#334155">artwork placement before release.</text>`);
+    ry += notesH + 28;
+
+    /* technical specification box */
+    p.push(`<rect x="${RX - 8}" y="${ry}" width="${colW + 16}" height="${specBoxH}" fill="white" stroke="#111" stroke-width="1.6"/>`);
+    p.push(`<rect x="${RX - 8}" y="${ry}" width="${colW + 16}" height="26" fill="#061421"/>`);
+    p.push(`<text x="${RX + 4}" y="${ry + 18}" font-size="12.5" font-weight="bold" fill="#ffffff" letter-spacing="1.5">TECHNICAL SPECIFICATION</text>`);
+    specRows.forEach(([label, value], i) => {
+      const sy = ry + 44 + i * 18;
+      if (i % 2 === 1) p.push(`<rect x="${RX - 8}" y="${sy - 13}" width="${colW + 16}" height="18" fill="#f8fafc"/>`);
+      p.push(`<text x="${RX + 4}" y="${sy}" font-size="10" font-weight="bold" fill="#475569">${label}</text>`);
+      p.push(`<text x="${RX + 168}" y="${sy}" font-size="10" fill="#111">${value}</text>`);
+    });
 
     /* approval block (bottom left) */
     let ay = panelBottom + 86;
@@ -1098,6 +1141,7 @@ export function DieLineGenerator() {
     const head = `
   <text x="${FX - 40}" y="56" font-size="${AW < 1500 ? 24 : 30}" font-weight="bold" fill="#111" letter-spacing="0.5">FINAL APPROVAL DIELINE — ${(T.name.split("·")[1] ?? T.name).trim().toUpperCase()}</text>
   <text x="${FX - 40}" y="82" font-size="13" fill="#374151">Production-ready approval layout: ${fmtA(W)} W × ${fmtA(H)} H${needsG ? `, ${fmtA(G)} bottom gusset` : ""}${zipOn ? ", zipper" : ""}${tearNotch ? ", tear notches" : ""}, bleed, safe zone, seal areas</text>
+  <text x="${FX - 40}" y="100" font-size="11" font-weight="bold" fill="#0087a8" letter-spacing="0.5">VIEW: FINISHED PANELS — FRONT &amp; BACK SHOWN SEPARATELY (NOT ROLL-FED FILM LAYOUT). Roll/web layout supplied with the production die line.</text>
   <rect x="${AW - 330}" y="34" width="280" height="46" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>
   <text x="${AW - 318}" y="53" font-size="11" font-weight="bold" fill="#111">MFX DIELINE ID</text>
   <text x="${AW - 318}" y="70" font-size="12" font-family="monospace" fill="#111">${dielineId}</text>`;
@@ -1171,6 +1215,7 @@ export function DieLineGenerator() {
           tearNotch, hangType, windowType, spout: spoutOn, valve: valveOn,
           roundCorners, laserScore, easyPeel, tamper, spotVarnish, foil,
           bleed: bleedIn, safety: safetyIn, fillDir, artOrient,
+          matStructure, printMethod, colorMode, preparedBy,
         },
         files: buildFiles(),
         sendEmail: true,
@@ -1441,6 +1486,26 @@ export function DieLineGenerator() {
               </select>
             </Field>
           )}
+          <Field label="Material structure">
+            <input style={inputStyle} value={matStructure} onChange={(e) => setMatStructure(e.target.value)} placeholder="PET / FOIL / PE" />
+          </Field>
+          <Field label="Print method">
+            <select style={inputStyle} value={printMethod} onChange={(e) => setPrintMethod(e.target.value)}>
+              <option>TBD — confirm with Microflex</option>
+              <option>Digital</option>
+              <option>Flexographic</option>
+            </select>
+          </Field>
+          <Field label="Color mode">
+            <select style={inputStyle} value={colorMode} onChange={(e) => setColorMode(e.target.value)}>
+              <option>CMYK</option>
+              <option>CMYK + spot colors</option>
+              <option>Spot colors only</option>
+            </select>
+          </Field>
+          <Field label="Prepared by (prepress)">
+            <input style={inputStyle} value={preparedBy} onChange={(e) => setPreparedBy(e.target.value)} placeholder="Operator name" />
+          </Field>
           {T.base === "web" && (
             <>
               <Field label="Unwind direction">
