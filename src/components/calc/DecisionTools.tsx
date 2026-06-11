@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Field, Result, Disclaimer, inputStyle } from "./shared";
 import { MFX_LOGO_WHITE, MFX_LOGO_ASPECT } from "@/lib/brandLogoData";
+import { registerDielineDownload } from "@/app/actions/dielineRegistry";
 
 /* ---------------- Format finder quiz ---------------- */
 
@@ -493,6 +494,15 @@ export function DieLineGenerator() {
   const [eyeMarkPos, setEyeMarkPos] = useState<"left" | "right">("left");
   const [artOrient, setArtOrient] = useState<"standard" | "back-inverted">("standard");
   const [outMode, setOutMode] = useState<"plan" | "approval">("plan");
+  // Lead gate: files unlock after customer/SKU/email are registered
+  const [leadCustomer, setLeadCustomer] = useState("");
+  const [leadSku, setLeadSku] = useState("");
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadNotes, setLeadNotes] = useState("");
+  const [gateBusy, setGateBusy] = useState(false);
+  const [gateError, setGateError] = useState<string | null>(null);
+  const [registryNo, setRegistryNo] = useState<string | null>(null);
+  const [lastRegisteredId, setLastRegisteredId] = useState<string | null>(null);
 
   function pickType(id: string) {
     const t = DIELINE_TYPES.find((x) => x.id === id)!;
@@ -1127,15 +1137,66 @@ export function DieLineGenerator() {
   const approvalAvailable = isPanel;
   const svg = outMode === "approval" && approvalAvailable && valid ? buildApprovalSheet() : planningSvg;
 
-  function download() {
-    const blob = new Blob([svg], { type: "image/svg+xml" });
+  function buildFiles() {
+    return {
+      planning: planningSvg || undefined,
+      approval: approvalAvailable && valid ? buildApprovalSheet() : undefined,
+    };
+  }
+
+  async function submitGate() {
+    if (!valid) return;
+    setGateBusy(true);
+    setGateError(null);
+    try {
+      const res = await registerDielineDownload({
+        customer: leadCustomer,
+        sku: leadSku,
+        email: leadEmail,
+        notes: leadNotes,
+        dielineId,
+        specSummary: specLine,
+        meta: {
+          type: T.id, unit, width: w, height: h, gusset: needsG ? g : "",
+          sealWidth: sealW, topSealW, zipper: zipOn ? zipperType : "none",
+          tearNotch, hangType, windowType, spout: spoutOn, valve: valveOn,
+          roundCorners, laserScore, easyPeel, tamper, spotVarnish, foil,
+          bleed: bleedIn, safety: safetyIn, fillDir, artOrient,
+        },
+        files: buildFiles(),
+        sendEmail: true,
+      });
+      if (!res.ok) {
+        setGateError(res.error ?? "Something went wrong — please try again.");
+        return;
+      }
+      setRegistryNo(res.registryNo ?? "");
+      setLastRegisteredId(dielineId);
+    } catch {
+      setGateError("Something went wrong — please try again.");
+    } finally {
+      setGateBusy(false);
+    }
+  }
+
+  function downloadFile(kind: "planning" | "approval") {
+    const files = buildFiles();
+    const content = kind === "approval" ? files.approval : files.planning;
+    if (!content) return;
+    // Spec changed since registration? Log the new generation silently (no email spam).
+    if (lastRegisteredId && dielineId !== lastRegisteredId) {
+      setLastRegisteredId(dielineId);
+      void registerDielineDownload({
+        customer: leadCustomer, sku: leadSku, email: leadEmail, notes: leadNotes,
+        dielineId, specSummary: specLine, meta: { type: T.id, unit, width: w, height: h },
+        files, sendEmail: false,
+      }).catch(() => {});
+    }
+    const blob = new Blob([content], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download =
-      outMode === "approval" && approvalAvailable
-        ? `${dielineId}-approval.svg`
-        : `microflex-dieline-${T.id}-${w}x${h}${unit}.svg`;
+    a.download = kind === "approval" ? `${dielineId}-approval.svg` : `${dielineId}-planning.svg`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -1433,13 +1494,75 @@ export function DieLineGenerator() {
         </p>
       )}
 
-      <div className="flex flex-wrap gap-3">
-        <button type="button" onClick={download} disabled={!valid} className="btn btn-primary" style={!valid ? { opacity: 0.5 } : undefined}>
-          ⬇ {outMode === "approval" && approvalAvailable ? "Download Approval Sheet" : "Download SVG Template"}
-        </button>
-        <a href="/artwork-guidelines" className="btn btn-secondary">Artwork Guidelines</a>
-        <a href="/#quote-form" className="btn btn-secondary">Request Production Die Line</a>
-      </div>
+      {/* ===== Download gate ===== */}
+      {!registryNo ? (
+        <div
+          className="rounded-3xl p-5 md:p-6"
+          style={{ border: "1px solid rgba(0,216,242,0.3)", background: "rgba(0,216,242,0.05)" }}
+        >
+          <div className="mb-4">
+            <h3 className="text-base font-black text-paper">Get your dieline files</h3>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              Tell us who this dieline is for and we&rsquo;ll email both files (planning template
+              + approval sheet) and unlock instant download. Your generation is logged in the
+              Microflex dieline registry so our team can reference it when you quote.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Customer / Brand *">
+              <input style={inputStyle} value={leadCustomer} onChange={(e) => setLeadCustomer(e.target.value)} placeholder="Acme Coffee Co." />
+            </Field>
+            <Field label="SKU / Product *">
+              <input style={inputStyle} value={leadSku} onChange={(e) => setLeadSku(e.target.value)} placeholder="Dark Roast 12oz" />
+            </Field>
+            <Field label="Email *">
+              <input style={inputStyle} type="email" value={leadEmail} onChange={(e) => setLeadEmail(e.target.value)} placeholder="you@company.com" />
+            </Field>
+          </div>
+          <div className="mt-4">
+            <Field label="Notes (optional)">
+              <input style={inputStyle} value={leadNotes} onChange={(e) => setLeadNotes(e.target.value)} placeholder="Timeline, quantities, questions for the team…" />
+            </Field>
+          </div>
+          {gateError && <p className="mt-3 text-sm" style={{ color: "#ff9d9d" }}>{gateError}</p>}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void submitGate()}
+              disabled={gateBusy || !valid || !leadCustomer.trim() || !leadSku.trim() || !leadEmail.trim()}
+              className="btn btn-primary"
+              style={gateBusy || !valid || !leadCustomer.trim() || !leadSku.trim() || !leadEmail.trim() ? { opacity: 0.5 } : undefined}
+            >
+              {gateBusy ? "Sending…" : "✉ Email Me the Files & Unlock Download"}
+            </button>
+            <span className="text-[11px] text-muted-dark">
+              No spam — just your files and a specialist who can quote them.
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="rounded-3xl p-5 md:p-6"
+          style={{ border: "1px solid rgba(0,216,242,0.4)", background: "rgba(0,216,242,0.07)" }}
+        >
+          <p className="text-sm text-paper">
+            <span className="font-black text-cyan">✓ Files sent to {leadEmail}</span>
+            <span className="ml-3 font-mono text-[11px] text-muted">Registry {registryNo}</span>
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button type="button" onClick={() => downloadFile("planning")} disabled={!valid} className="btn btn-primary" style={!valid ? { opacity: 0.5 } : undefined}>
+              ⬇ Download Planning Template
+            </button>
+            {approvalAvailable && (
+              <button type="button" onClick={() => downloadFile("approval")} disabled={!valid} className="btn btn-primary" style={!valid ? { opacity: 0.5 } : undefined}>
+                ⬇ Download Approval Sheet
+              </button>
+            )}
+            <a href="/artwork-guidelines" className="btn btn-secondary">Artwork Guidelines</a>
+            <a href="/#quote-form" className="btn btn-secondary">Request Production Die Line</a>
+          </div>
+        </div>
+      )}
       <Disclaimer>
         One core format multiplies into many dieline versions — Level 1 picks the family,
         Level 2 adds the structural features, and Level 3 pins the production-specific
