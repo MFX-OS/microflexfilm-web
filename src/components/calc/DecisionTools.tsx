@@ -547,7 +547,7 @@ export function DieLineGenerator() {
   // hole needs room — leaving working space so the tear notch actually opens
   // the bag above the zipper.
   const ZIP_CL_FROM_TOP = 1.5;
-  const topSealW = zipOn ? (hangOn ? 0.75 : 0.5) : sealW;
+  const topSealW = zipOn ? (hangOn ? 0.75 : 0.5) : hangOn && isPanel && !T.header ? Math.max(sealW, 0.75) : sealW;
   const zipTop = zipOn ? bodyTop + ZIP_CL_FROM_TOP - zipH / 2 : bodyTop + sealW + zipGap + (tamper ? 0.18 : 0);
   const zipBottom = zipTop + zipH;
   const spoutClear = spoutOn ? 0.45 : 0;
@@ -943,13 +943,18 @@ export function DieLineGenerator() {
       }
       // hang slot (optional)
       if (hangOn) {
-        p.push(`<rect x="${L(W / 2 - 0.45)}" y="${Ty(topSealW * 0.18)}" width="${0.9 * AS}" height="${0.16 * AS}" rx="${0.08 * AS}" fill="none" stroke="#6b7280" stroke-width="1.4"/>`);
-        if (!narrow) p.push(`<text x="${L(W / 2)}" y="${Ty(topSealW * 0.18) - 5}" text-anchor="middle" font-size="10" fill="#6b7280" letter-spacing="1">OPTIONAL HANG SLOT</text>`);
+        const slotCy = Ty(topSealW * 0.3);
+        if (hangType === "euro") {
+          p.push(`<rect x="${L(W / 2 - 0.45)}" y="${slotCy - 0.08 * AS}" width="${0.9 * AS}" height="${0.16 * AS}" rx="${0.08 * AS}" fill="white" stroke="#6b7280" stroke-width="1.4"/>`);
+        } else {
+          p.push(`<circle cx="${L(W / 2)}" cy="${slotCy}" r="${0.115 * AS}" fill="white" stroke="#6b7280" stroke-width="1.4"/>`);
+        }
       }
       // top seal callout — pill inside when it fits, leader label above when narrow
-      if (!narrow) {
-        p.push(`<rect x="${L(W / 2) - 64}" y="${Ty(topSealW / 2) - 1}" width="128" height="20" rx="9" fill="white" stroke="#111" stroke-width="1.2"/>`);
-        p.push(`<text x="${L(W / 2)}" y="${Ty(topSealW / 2) + 13}" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#111">TOP SEAL ${fmtA(topSealW)}</text>`);
+      const pillCy = hangOn ? topSealW * 0.72 : topSealW / 2;
+      if (!narrow && topSealW * AS >= 26) {
+        p.push(`<rect x="${L(W / 2) - 64}" y="${Ty(pillCy) - 10}" width="128" height="20" rx="9" fill="white" stroke="#111" stroke-width="1.2"/>`);
+        p.push(`<text x="${L(W / 2)}" y="${Ty(pillCy) + 4}" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#111">TOP SEAL ${fmtA(topSealW)}</text>`);
       } else {
         p.push(`<text x="${L(W / 2)}" y="${Ty(-bleed) - 26}" text-anchor="middle" font-size="10.5" font-weight="bold" fill="#111">TOP SEAL ${fmtA(topSealW)}</text>`);
         p.push(`<line x1="${L(W / 2)}" y1="${Ty(-bleed) - 20}" x2="${L(W / 2)}" y2="${Ty(topSealW / 2)}" stroke="#111" stroke-width="1"/>`);
@@ -986,7 +991,9 @@ export function DieLineGenerator() {
       if (narrow) {
         p.push(`<text x="${L(W / 2) + 5}" y="${cy}" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937" letter-spacing="1.5" transform="rotate(-90 ${L(W / 2) + 5} ${cy})">${label} — ${fmtA(W)} W × ${fmtA(H)} H</text>`);
       } else {
-        p.push(`<text x="${L(W / 2)}" y="${cy - 26}" text-anchor="middle" font-size="24" font-weight="bold" fill="#1f2937" letter-spacing="2">${label}</text>`);
+        const availPx = (safeRight - safeLeft) * AS;
+        const titleFs = Math.max(13, Math.min(24, availPx / 7));
+        p.push(`<text x="${L(W / 2)}" y="${cy - 26}" text-anchor="middle" font-size="${titleFs}" font-weight="bold" fill="#1f2937" letter-spacing="2">${label}</text>`);
         p.push(`<text x="${L(W / 2)}" y="${cy + 6}" text-anchor="middle" font-size="13" fill="#374151" letter-spacing="1">FINISHED PANEL</text>`);
         p.push(`<text x="${L(W / 2)}" y="${cy + 26}" text-anchor="middle" font-size="13" fill="#374151">${fmtA(W)} W × ${fmtA(H)} H</text>`);
       }
@@ -1046,6 +1053,7 @@ export function DieLineGenerator() {
     ];
     if (zipOn) lg.push([`<line x1="0" y1="0" x2="34" y2="0" stroke="#f59e0b" stroke-width="2.6"/>`, "ZIPPER AREA"]);
     if (tearNotch) lg.push([`<line x1="0" y1="0" x2="34" y2="0" stroke="#dc2626" stroke-width="2.6"/>`, "TEAR NOTCH"]);
+    if (hangOn) lg.push([`<circle cx="17" cy="0" r="6" fill="white" stroke="#6b7280" stroke-width="1.4"/>`, hangType === "euro" ? "EURO SLOT HANG HOLE" : "HANG HOLE"]);
     lg.push([`<rect x="10" y="-7" width="12" height="14" fill="#111"/>`, "EYE MARK / REGISTRATION"]);
     lg.forEach(([sw, label], i) => {
       p.push(`<g transform="translate(${RX}, ${ry + i * 27})">${sw}<text x="48" y="4" font-size="12" fill="#111" letter-spacing="0.5">${label}</text></g>`);
