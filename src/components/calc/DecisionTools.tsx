@@ -491,6 +491,7 @@ export function DieLineGenerator() {
   const [unwind, setUnwind] = useState(UNWINDS[0]);
   const [eyeMarkPos, setEyeMarkPos] = useState<"left" | "right">("left");
   const [artOrient, setArtOrient] = useState<"standard" | "back-inverted">("standard");
+  const [outMode, setOutMode] = useState<"plan" | "approval">("plan");
 
   function pickType(id: string) {
     const t = DIELINE_TYPES.find((x) => x.id === id)!;
@@ -845,7 +846,186 @@ export function DieLineGenerator() {
 
   const specLine = `${T.name.split("·")[1]?.trim() ?? T.name} · ${fmtDim(W)} × ${fmtDim(H)}${needsG ? ` + ${fmtDim(G)} gusset` : ""}${isPanel || T.base === "lid" ? ` · ${SEAL_WIDTHS.find((x) => x.v === sealW)?.label ?? ""}` : ""} · bleed ${fmtDim(bleed)} · safe ${fmtDim(safety)}`;
 
-  const svg = valid
+
+  /* ===== Final Approval Sheet (production-style download) ===== */
+  const TYPE_CODES: Record<string, string> = {
+    "flat-pillow": "PIL", "three-side": "3SS", "four-side": "4SS", "fin-seal": "FIN",
+    "lap-seal": "LAP", standup: "SUP", "standup-zip": "SUP", "standup-spout": "SUP",
+    "bottom-gusset": "BGP", "side-gusset": "SGB", "quad-seal": "QSB", "flat-bottom": "FBP",
+    "stick-pack": "STK", sachet: "SCH", "shrink-sleeve": "SLV", rollstock: "RST",
+    lidstock: "LID", "flow-wrap": "FLW", "header-bag": "HDR", "die-cut": "DCT",
+  };
+  const trim0 = (n: number) => String(parseFloat(n.toFixed(3)));
+  const dielineId = `MFX-${TYPE_CODES[T.id] ?? "PKG"}-${trim0(W)}x${trim0(H)}${needsG ? `-G${trim0(G)}` : ""}${zipOn ? (zipperType === "cr" ? "-CRZ" : "-ZIP") : ""}${spoutOn ? "-SPT" : ""}-v001`;
+  const fmtA = (inches: number) => (unit === "mm" ? `${Math.round(inches * 25.4)} mm` : `${inches.toFixed(3)}"`);
+
+  function buildApprovalSheet(): string {
+    const AS = Math.min(46, 460 / Math.max(W, 1)); // px per inch, cap panel width
+    const PY = 150;
+    const FX = 120;
+    const BX = FX + W * AS + 150;
+    const RX = BX + W * AS + 130;
+    const colW = 400;
+    const panelBottom = PY + H * AS;
+    const AW = RX + colW + 60;
+    const AH = Math.max(panelBottom + 300, PY + 760);
+    const p: string[] = [];
+
+    const sealFill = "rgba(248,180,180,0.55)";
+    const sealFillDark = "rgba(240,140,140,0.65)";
+
+    function panel(x0: number, label: string, isBack: boolean) {
+      const L = (ix: number) => x0 + ix * AS;
+      const Ty = (iy: number) => PY + iy * AS;
+      // bleed
+      p.push(`<rect x="${L(-bleed)}" y="${Ty(-bleed)}" width="${(W + bleed * 2) * AS}" height="${(H + bleed * 2) * AS}" fill="none" stroke="#2563eb" stroke-width="2" stroke-dasharray="10 6"/>`);
+      // cut
+      p.push(`<rect x="${L(0)}" y="${Ty(0)}" width="${W * AS}" height="${H * AS}" fill="white" stroke="#111111" stroke-width="2.6"/>`);
+      // seals — top, sides; corners darker
+      p.push(`<rect x="${L(0)}" y="${Ty(0)}" width="${W * AS}" height="${sealW * AS}" fill="${sealFill}"/>`);
+      const sideH = (T.bottomGusset ? H - gussetH : H) - sealW;
+      if (T.sealSides) {
+        p.push(`<rect x="${L(0)}" y="${Ty(sealW)}" width="${sealW * AS}" height="${sideH * AS}" fill="${sealFill}"/>`);
+        p.push(`<rect x="${L(W - sealW)}" y="${Ty(sealW)}" width="${sealW * AS}" height="${sideH * AS}" fill="${sealFill}"/>`);
+        p.push(`<rect x="${L(0)}" y="${Ty(0)}" width="${sealW * AS}" height="${sealW * AS}" fill="${sealFillDark}"/>`);
+        p.push(`<rect x="${L(W - sealW)}" y="${Ty(0)}" width="${sealW * AS}" height="${sealW * AS}" fill="${sealFillDark}"/>`);
+      }
+      if (T.sealBottom && !T.bottomGusset) p.push(`<rect x="${L(0)}" y="${Ty(H - sealW)}" width="${W * AS}" height="${sealW * AS}" fill="${sealFill}"/>`);
+      // gusset zone
+      if (T.bottomGusset) {
+        p.push(`<rect x="${L(0)}" y="${Ty(H - gussetH)}" width="${W * AS}" height="${gussetH * AS}" fill="${sealFill}"/>`);
+        p.push(`<line x1="${L(0)}" y1="${Ty(H - gussetH)}" x2="${L(W)}" y2="${Ty(H - gussetH)}" stroke="#9333ea" stroke-width="2" stroke-dasharray="12 7"/>`);
+        p.push(`<text x="${L(W / 2)}" y="${Ty(H - gussetH) - 6}" text-anchor="middle" font-size="11" fill="#16a34a" letter-spacing="1">··· BOTTOM GUSSET FOLD / HALF GUSSET AREA — ${fmtA(gussetH)} ···</text>`);
+      }
+      // hang slot (optional)
+      if (hangOn) {
+        p.push(`<rect x="${L(W / 2 - 0.45)}" y="${Ty(sealW * 0.18)}" width="${0.9 * AS}" height="${0.16 * AS}" rx="${0.08 * AS}" fill="none" stroke="#6b7280" stroke-width="1.4"/>`);
+        p.push(`<text x="${L(W / 2)}" y="${Ty(sealW * 0.18) - 5}" text-anchor="middle" font-size="10" fill="#6b7280" letter-spacing="1">OPTIONAL HANG SLOT</text>`);
+      }
+      // top seal callout
+      p.push(`<rect x="${L(W / 2) - 64}" y="${Ty(sealW / 2) - 1}" width="128" height="20" rx="9" fill="white" stroke="#111" stroke-width="1.2"/>`);
+      p.push(`<text x="${L(W / 2)}" y="${Ty(sealW / 2) + 13}" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#111">TOP SEAL ${fmtA(sealW)}</text>`);
+      // tear notches
+      if (tearNotch) {
+        p.push(`<path d="M ${L(0)} ${Ty(notchPosA) - 8} l 13 8 l -13 8 Z" fill="#dc2626"/>`);
+        p.push(`<path d="M ${L(W)} ${Ty(notchPosA) - 8} l -13 8 l 13 8 Z" fill="#dc2626"/>`);
+        p.push(`<text x="${L(W / 2)}" y="${Ty(notchPosA) - 12}" text-anchor="middle" font-size="11" font-weight="bold" fill="#dc2626" letter-spacing="1">TEAR NOTCHES</text>`);
+      }
+      // zipper
+      if (zipOn) {
+        p.push(`<rect x="${L(sealW + 0.1)}" y="${Ty(zipTop)}" width="${(W - (sealW + 0.1) * 2) * AS}" height="${zipH * AS}" fill="none" stroke="#f59e0b" stroke-width="2.4"/>`);
+        p.push(`<text x="${L(W / 2)}" y="${Ty(zipTop + zipH / 2) + 4}" text-anchor="middle" font-size="12" font-weight="bold" fill="#f59e0b" letter-spacing="2">ZIPPER AREA${zipperType === "cr" ? " (CHILD-RESISTANT)" : ""}</text>`);
+      }
+      // safe zone
+      const sB = T.bottomGusset ? H - gussetH - safety : safeBottom;
+      p.push(`<rect x="${L(safeLeft)}" y="${Ty(safeTop)}" width="${(safeRight - safeLeft) * AS}" height="${(sB - safeTop) * AS}" fill="none" stroke="#16a34a" stroke-width="1.8" stroke-dasharray="2 5"/>`);
+      // panel center text
+      const cy = Ty((safeTop + sB) / 2);
+      p.push(`<text x="${L(W / 2)}" y="${cy - 26}" text-anchor="middle" font-size="24" font-weight="bold" fill="#1f2937" letter-spacing="2">${label}</text>`);
+      p.push(`<text x="${L(W / 2)}" y="${cy + 6}" text-anchor="middle" font-size="13" fill="#374151" letter-spacing="1">FINISHED PANEL</text>`);
+      p.push(`<text x="${L(W / 2)}" y="${cy + 26}" text-anchor="middle" font-size="13" fill="#374151">${fmtA(W)} W × ${fmtA(H)} H</text>`);
+      // side seal labels
+      if (T.sealSides) {
+        const sy = Ty(H * 0.55);
+        p.push(`<text x="${L(sealW / 2)}" y="${sy}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#7f1d1d" transform="rotate(-90 ${L(sealW / 2)} ${sy})">SIDE SEAL ${fmtA(sealW)}</text>`);
+        p.push(`<text x="${L(W - sealW / 2)}" y="${sy}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#7f1d1d" transform="rotate(-90 ${L(W - sealW / 2)} ${sy})">SIDE SEAL ${fmtA(sealW)}</text>`);
+      }
+      // width dim
+      const dyy = panelBottom + 34;
+      p.push(`<line x1="${L(0)}" y1="${dyy}" x2="${L(W)}" y2="${dyy}" stroke="#111" stroke-width="1.4" marker-start="url(#arrL)" marker-end="url(#arrR)"/>`);
+      p.push(`<text x="${L(W / 2)}" y="${dyy + 18}" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">FINISHED WIDTH ${fmtA(W)}</text>`);
+      // height dim
+      const dxx = x0 - 36;
+      p.push(`<line x1="${dxx}" y1="${Ty(0)}" x2="${dxx}" y2="${Ty(H)}" stroke="#111" stroke-width="1.4" marker-start="url(#arrU)" marker-end="url(#arrD)"/>`);
+      p.push(`<text x="${dxx - 8}" y="${Ty(H / 2)}" text-anchor="middle" font-size="11" font-weight="bold" fill="#111" transform="rotate(-90 ${dxx - 8} ${Ty(H / 2)})">FINISHED HEIGHT ${fmtA(H)}</text>`);
+      // eye mark on back
+      if (isBack) {
+        p.push(`<rect x="${L(W) + 10}" y="${Ty(H * 0.62)}" width="20" height="56" fill="#111"/>`);
+        p.push(`<line x1="${L(W)}" y1="${Ty(H * 0.62) + 28}" x2="${L(W) + 10}" y2="${Ty(H * 0.62) + 28}" stroke="#111" stroke-width="1.4"/>`);
+        p.push(`<text x="${L(W) + 38}" y="${Ty(H * 0.62) + 24}" font-size="11" font-weight="bold" fill="#111">EYE MARK /</text>`);
+        p.push(`<text x="${L(W) + 38}" y="${Ty(H * 0.62) + 38}" font-size="11" font-weight="bold" fill="#111">REGISTRATION</text>`);
+      }
+    }
+    const notchPosA = zipOn ? zipTop - 0.12 : sealW + 0.22;
+
+    panel(FX, "FRONT PANEL", false);
+    panel(BX, "BACK PANEL", true);
+
+    /* right column */
+    let ry = PY + 10;
+    if (T.bottomGusset) {
+      p.push(`<text x="${RX}" y="${ry}" font-size="17" font-weight="bold" fill="#111">BOTTOM GUSSET DETAIL</text>`);
+      ry += 22;
+      const gh = 110;
+      p.push(`<rect x="${RX - 8}" y="${ry - 8}" width="${colW + 16}" height="${gh + 16}" fill="none" stroke="#2563eb" stroke-width="1.6" stroke-dasharray="9 6"/>`);
+      p.push(`<rect x="${RX}" y="${ry}" width="${colW}" height="${gh}" fill="white" stroke="#111" stroke-width="2.2"/>`);
+      p.push(`<line x1="${RX}" y1="${ry + gh / 2 - 8}" x2="${RX + colW}" y2="${ry + gh / 2 - 8}" stroke="#9333ea" stroke-width="2" stroke-dasharray="12 7"/>`);
+      p.push(`<text x="${RX + colW / 2}" y="${ry + gh / 2 - 16}" text-anchor="middle" font-size="11" fill="#9333ea" letter-spacing="2">CENTER FOLD</text>`);
+      p.push(`<text x="${RX + colW / 2}" y="${ry + gh / 2 + 22}" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#111">TOTAL GUSSET DEPTH ${fmtA(G)}</text>`);
+      p.push(`<text x="${RX + colW / 2}" y="${ry + gh / 2 + 40}" text-anchor="middle" font-size="11" fill="#374151">${fmtA(G / 2)} FRONT HALF + ${fmtA(G / 2)} BACK HALF</text>`);
+      const gdy = ry + gh + 30;
+      p.push(`<line x1="${RX}" y1="${gdy}" x2="${RX + colW}" y2="${gdy}" stroke="#111" stroke-width="1.4" marker-start="url(#arrL)" marker-end="url(#arrR)"/>`);
+      p.push(`<text x="${RX + colW / 2}" y="${gdy + 18}" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#111">GUSSET DEPTH ${fmtA(G)}</text>`);
+      ry = gdy + 50;
+    }
+    /* layer legend */
+    p.push(`<text x="${RX}" y="${ry}" font-size="17" font-weight="bold" fill="#111">LAYER LEGEND</text>`);
+    ry += 26;
+    const lg: [string, string][] = [
+      [`<line x1="0" y1="0" x2="34" y2="0" stroke="#111" stroke-width="2.6"/>`, "CUT LINE / TRIM"],
+      [`<line x1="0" y1="0" x2="34" y2="0" stroke="#2563eb" stroke-width="2" stroke-dasharray="9 5"/>`, `BLEED ${fmtA(bleed)}`],
+      [`<line x1="0" y1="0" x2="34" y2="0" stroke="#16a34a" stroke-width="2" stroke-dasharray="2 5"/>`, `SAFE ZONE ${fmtA(safety)}`],
+      [`<rect x="0" y="-7" width="34" height="14" fill="${sealFill}"/>`, "SEAL AREA — no critical text"],
+      [`<line x1="0" y1="0" x2="34" y2="0" stroke="#9333ea" stroke-width="2" stroke-dasharray="12 7"/>`, "FOLD / GUSSET LINE"],
+    ];
+    if (zipOn) lg.push([`<line x1="0" y1="0" x2="34" y2="0" stroke="#f59e0b" stroke-width="2.6"/>`, "ZIPPER AREA"]);
+    if (tearNotch) lg.push([`<line x1="0" y1="0" x2="34" y2="0" stroke="#dc2626" stroke-width="2.6"/>`, "TEAR NOTCH"]);
+    lg.push([`<rect x="10" y="-7" width="12" height="14" fill="#111"/>`, "EYE MARK / REGISTRATION"]);
+    lg.forEach(([sw, label], i) => {
+      p.push(`<g transform="translate(${RX}, ${ry + i * 27})">${sw}<text x="48" y="4" font-size="12" fill="#111" letter-spacing="0.5">${label}</text></g>`);
+    });
+    ry += lg.length * 27 + 36;
+    /* approval notes */
+    const notesH = 96;
+    p.push(`<rect x="${RX - 8}" y="${ry}" width="${colW + 16}" height="${notesH}" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>`);
+    p.push(`<text x="${RX + 8}" y="${ry + 24}" font-size="13" font-weight="bold" fill="#111">FINAL APPROVAL NOTES</text>`);
+    p.push(`<text x="${RX + 8}" y="${ry + 44}" font-size="10.5" fill="#334155">APPROVAL CHECK: confirm finished size, zipper, notch location,</text>`);
+    p.push(`<text x="${RX + 8}" y="${ry + 59}" font-size="10.5" fill="#334155">seal zones, gusset, bleed, safe zone, eye mark need, and</text>`);
+    p.push(`<text x="${RX + 8}" y="${ry + 74}" font-size="10.5" fill="#334155">artwork placement before release.</text>`);
+
+    /* approval block (bottom left) */
+    let ay = panelBottom + 86;
+    p.push(`<text x="${FX - 40}" y="${ay}" font-size="16" font-weight="bold" fill="#111">APPROVAL BLOCK</text>`);
+    ay += 14;
+    ["Customer / Brand:", "SKU / Product:", "Approved By:", "Date:", "Version:"].forEach((label, i) => {
+      const yy = ay + i * 27 + 14;
+      p.push(`<text x="${FX - 40}" y="${yy}" font-size="12" fill="#111">${label}</text>`);
+      p.push(`<line x1="${FX + 90}" y1="${yy + 3}" x2="${FX + 470}" y2="${yy + 3}" stroke="#94a3b8" stroke-width="1"/>`);
+    });
+
+    /* header + id + footer */
+    const head = `
+  <text x="${FX - 40}" y="56" font-size="30" font-weight="bold" fill="#111" letter-spacing="0.5">FINAL APPROVAL DIELINE — ${(T.name.split("·")[1] ?? T.name).trim().toUpperCase()}</text>
+  <text x="${FX - 40}" y="82" font-size="13" fill="#374151">Production-ready approval layout: ${fmtA(W)} W × ${fmtA(H)} H${needsG ? `, ${fmtA(G)} bottom gusset` : ""}${zipOn ? ", zipper" : ""}${tearNotch ? ", tear notches" : ""}, bleed, safe zone, seal areas</text>
+  <rect x="${AW - 330}" y="34" width="280" height="46" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>
+  <text x="${AW - 318}" y="53" font-size="11" font-weight="bold" fill="#111">MFX DIELINE ID</text>
+  <text x="${AW - 318}" y="70" font-size="12" font-family="monospace" fill="#111">${dielineId}</text>`;
+    const footer = `<text x="${FX - 40}" y="${AH - 18}" font-size="11.5" fill="#111">Production rule: all critical artwork must remain inside the safe zone and outside seal/fold/zipper/notch areas. Dieline layers should remain vector, named, and locked before customer proofing.</text>`;
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${AW} ${AH}" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrL" markerWidth="10" markerHeight="10" refX="2" refY="3" orient="auto"><path d="M8 0 L2 3 L8 6" fill="none" stroke="#111" stroke-width="1.4"/></marker>
+    <marker id="arrR" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="none" stroke="#111" stroke-width="1.4"/></marker>
+    <marker id="arrU" markerWidth="10" markerHeight="10" refX="3" refY="2" orient="auto"><path d="M0 8 L3 2 L6 8" fill="none" stroke="#111" stroke-width="1.4"/></marker>
+    <marker id="arrD" markerWidth="10" markerHeight="10" refX="3" refY="6" orient="auto"><path d="M0 0 L3 6 L6 0" fill="none" stroke="#111" stroke-width="1.4"/></marker>
+  </defs>
+  <rect width="${AW}" height="${AH}" fill="white"/>${head}
+  ${p.join("\n  ")}
+  ${footer}
+</svg>`;
+  }
+
+  const planningSvg = valid
     ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" font-family="Helvetica, Arial, sans-serif">
   <defs>
     <pattern id="sealhatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -864,12 +1044,18 @@ export function DieLineGenerator() {
 </svg>`
     : "";
 
+  const approvalAvailable = isPanel;
+  const svg = outMode === "approval" && approvalAvailable && valid ? buildApprovalSheet() : planningSvg;
+
   function download() {
     const blob = new Blob([svg], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `microflex-dieline-${T.id}-${w}x${h}${unit}.svg`;
+    a.download =
+      outMode === "approval" && approvalAvailable
+        ? `${dielineId}-approval.svg`
+        : `microflex-dieline-${T.id}-${w}x${h}${unit}.svg`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -1070,6 +1256,36 @@ export function DieLineGenerator() {
         </div>
       </div>
 
+      {/* Output mode */}
+      {approvalAvailable && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-muted-dark">Output:</span>
+          {(
+            [
+              ["plan", "Planning Template"],
+              ["approval", "Final Approval Sheet"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setOutMode(id)}
+              className="rounded-full px-4 py-2 text-xs font-extrabold transition"
+              style={{
+                border: `1px solid ${outMode === id ? "rgba(0,216,242,0.7)" : "rgba(255,255,255,0.14)"}`,
+                background: outMode === id ? "rgba(0,216,242,0.12)" : "rgba(255,255,255,0.03)",
+                color: outMode === id ? "#34e3f5" : "#a9b9c8",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+          {outMode === "approval" && (
+            <span className="font-mono text-[11px] text-muted">ID: {dielineId}</span>
+          )}
+        </div>
+      )}
+
       {valid ? (
         <div className="overflow-x-auto rounded-2xl bg-white p-2" style={{ border: "1px solid rgba(255,255,255,0.2)" }}>
           {/* eslint-disable-next-line react/no-danger */}
@@ -1084,7 +1300,7 @@ export function DieLineGenerator() {
 
       <div className="flex flex-wrap gap-3">
         <button type="button" onClick={download} disabled={!valid} className="btn btn-primary" style={!valid ? { opacity: 0.5 } : undefined}>
-          ⬇ Download SVG Template
+          ⬇ {outMode === "approval" && approvalAvailable ? "Download Approval Sheet" : "Download SVG Template"}
         </button>
         <a href="/artwork-guidelines" className="btn btn-secondary">Artwork Guidelines</a>
         <a href="/#quote-form" className="btn btn-secondary">Request Production Die Line</a>
