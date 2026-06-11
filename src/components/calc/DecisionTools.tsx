@@ -860,14 +860,20 @@ export function DieLineGenerator() {
   const fmtA = (inches: number) => (unit === "mm" ? `${Math.round(inches * 25.4)} mm` : `${inches.toFixed(3)}"`);
 
   function buildApprovalSheet(): string {
-    const AS = Math.min(46, 460 / Math.max(W, 1)); // px per inch, cap panel width
+    // Aspect-aware scale: narrow formats (stick packs) get a larger px/in so
+    // panels stay readable; wide/tall formats are capped to fit the sheet.
+    let AS = Math.max(46, 200 / Math.max(W, 0.5));
+    AS = Math.min(AS, 480 / Math.max(W, 0.5), 760 / Math.max(H, 1));
+    AS = Math.max(AS, 20);
+    const panelPx = W * AS;
+    const narrow = panelPx < 185;
     const PY = 150;
     const FX = 120;
-    const BX = FX + W * AS + 150;
-    const RX = BX + W * AS + 130;
+    const BX = FX + panelPx + 170;
+    const RX = BX + panelPx + 170;
     const colW = 400;
     const panelBottom = PY + H * AS;
-    const AW = RX + colW + 60;
+    const AW = Math.max(RX + colW + 60, 1380);
     const AH = Math.max(panelBottom + 300, PY + 760);
     const p: string[] = [];
 
@@ -895,37 +901,46 @@ export function DieLineGenerator() {
       if (T.bottomGusset) {
         p.push(`<rect x="${L(0)}" y="${Ty(H - gussetH)}" width="${W * AS}" height="${gussetH * AS}" fill="${sealFill}"/>`);
         p.push(`<line x1="${L(0)}" y1="${Ty(H - gussetH)}" x2="${L(W)}" y2="${Ty(H - gussetH)}" stroke="#9333ea" stroke-width="2" stroke-dasharray="12 7"/>`);
-        p.push(`<text x="${L(W / 2)}" y="${Ty(H - gussetH) - 6}" text-anchor="middle" font-size="11" fill="#16a34a" letter-spacing="1">··· BOTTOM GUSSET FOLD / HALF GUSSET AREA — ${fmtA(gussetH)} ···</text>`);
+        if (panelPx >= 280) p.push(`<text x="${L(W / 2)}" y="${Ty(H - gussetH) - 6}" text-anchor="middle" font-size="11" fill="#16a34a" letter-spacing="1">··· BOTTOM GUSSET FOLD / HALF GUSSET AREA — ${fmtA(gussetH)} ···</text>`);
       }
       // hang slot (optional)
       if (hangOn) {
         p.push(`<rect x="${L(W / 2 - 0.45)}" y="${Ty(sealW * 0.18)}" width="${0.9 * AS}" height="${0.16 * AS}" rx="${0.08 * AS}" fill="none" stroke="#6b7280" stroke-width="1.4"/>`);
-        p.push(`<text x="${L(W / 2)}" y="${Ty(sealW * 0.18) - 5}" text-anchor="middle" font-size="10" fill="#6b7280" letter-spacing="1">OPTIONAL HANG SLOT</text>`);
+        if (!narrow) p.push(`<text x="${L(W / 2)}" y="${Ty(sealW * 0.18) - 5}" text-anchor="middle" font-size="10" fill="#6b7280" letter-spacing="1">OPTIONAL HANG SLOT</text>`);
       }
-      // top seal callout
-      p.push(`<rect x="${L(W / 2) - 64}" y="${Ty(sealW / 2) - 1}" width="128" height="20" rx="9" fill="white" stroke="#111" stroke-width="1.2"/>`);
-      p.push(`<text x="${L(W / 2)}" y="${Ty(sealW / 2) + 13}" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#111">TOP SEAL ${fmtA(sealW)}</text>`);
+      // top seal callout — pill inside when it fits, leader label above when narrow
+      if (!narrow) {
+        p.push(`<rect x="${L(W / 2) - 64}" y="${Ty(sealW / 2) - 1}" width="128" height="20" rx="9" fill="white" stroke="#111" stroke-width="1.2"/>`);
+        p.push(`<text x="${L(W / 2)}" y="${Ty(sealW / 2) + 13}" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#111">TOP SEAL ${fmtA(sealW)}</text>`);
+      } else {
+        p.push(`<text x="${L(W / 2)}" y="${Ty(-bleed) - 26}" text-anchor="middle" font-size="10.5" font-weight="bold" fill="#111">TOP SEAL ${fmtA(sealW)}</text>`);
+        p.push(`<line x1="${L(W / 2)}" y1="${Ty(-bleed) - 20}" x2="${L(W / 2)}" y2="${Ty(sealW / 2)}" stroke="#111" stroke-width="1"/>`);
+      }
       // tear notches
       if (tearNotch) {
         p.push(`<path d="M ${L(0)} ${Ty(notchPosA) - 8} l 13 8 l -13 8 Z" fill="#dc2626"/>`);
         p.push(`<path d="M ${L(W)} ${Ty(notchPosA) - 8} l -13 8 l 13 8 Z" fill="#dc2626"/>`);
-        p.push(`<text x="${L(W / 2)}" y="${Ty(notchPosA) - 12}" text-anchor="middle" font-size="11" font-weight="bold" fill="#dc2626" letter-spacing="1">TEAR NOTCHES</text>`);
+        if (!narrow) p.push(`<text x="${L(W / 2)}" y="${Ty(notchPosA) - 12}" text-anchor="middle" font-size="11" font-weight="bold" fill="#dc2626" letter-spacing="1">TEAR NOTCHES</text>`);
       }
       // zipper
       if (zipOn) {
         p.push(`<rect x="${L(sealW + 0.1)}" y="${Ty(zipTop)}" width="${(W - (sealW + 0.1) * 2) * AS}" height="${zipH * AS}" fill="none" stroke="#f59e0b" stroke-width="2.4"/>`);
-        p.push(`<text x="${L(W / 2)}" y="${Ty(zipTop + zipH / 2) + 4}" text-anchor="middle" font-size="12" font-weight="bold" fill="#f59e0b" letter-spacing="2">ZIPPER AREA${zipperType === "cr" ? " (CHILD-RESISTANT)" : ""}</text>`);
+        if (!narrow) p.push(`<text x="${L(W / 2)}" y="${Ty(zipTop + zipH / 2) + 4}" text-anchor="middle" font-size="12" font-weight="bold" fill="#f59e0b" letter-spacing="2">ZIPPER AREA${zipperType === "cr" ? " (CHILD-RESISTANT)" : ""}</text>`);
       }
       // safe zone
       const sB = T.bottomGusset ? H - gussetH - safety : safeBottom;
       p.push(`<rect x="${L(safeLeft)}" y="${Ty(safeTop)}" width="${(safeRight - safeLeft) * AS}" height="${(sB - safeTop) * AS}" fill="none" stroke="#16a34a" stroke-width="1.8" stroke-dasharray="2 5"/>`);
-      // panel center text
+      // panel center text — rotated single line on narrow formats
       const cy = Ty((safeTop + sB) / 2);
-      p.push(`<text x="${L(W / 2)}" y="${cy - 26}" text-anchor="middle" font-size="24" font-weight="bold" fill="#1f2937" letter-spacing="2">${label}</text>`);
-      p.push(`<text x="${L(W / 2)}" y="${cy + 6}" text-anchor="middle" font-size="13" fill="#374151" letter-spacing="1">FINISHED PANEL</text>`);
-      p.push(`<text x="${L(W / 2)}" y="${cy + 26}" text-anchor="middle" font-size="13" fill="#374151">${fmtA(W)} W × ${fmtA(H)} H</text>`);
+      if (narrow) {
+        p.push(`<text x="${L(W / 2) + 5}" y="${cy}" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937" letter-spacing="1.5" transform="rotate(-90 ${L(W / 2) + 5} ${cy})">${label} — ${fmtA(W)} W × ${fmtA(H)} H</text>`);
+      } else {
+        p.push(`<text x="${L(W / 2)}" y="${cy - 26}" text-anchor="middle" font-size="24" font-weight="bold" fill="#1f2937" letter-spacing="2">${label}</text>`);
+        p.push(`<text x="${L(W / 2)}" y="${cy + 6}" text-anchor="middle" font-size="13" fill="#374151" letter-spacing="1">FINISHED PANEL</text>`);
+        p.push(`<text x="${L(W / 2)}" y="${cy + 26}" text-anchor="middle" font-size="13" fill="#374151">${fmtA(W)} W × ${fmtA(H)} H</text>`);
+      }
       // side seal labels
-      if (T.sealSides) {
+      if (T.sealSides && sealW * AS >= 13 && H * AS >= 200) {
         const sy = Ty(H * 0.55);
         p.push(`<text x="${L(sealW / 2)}" y="${sy}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#7f1d1d" transform="rotate(-90 ${L(sealW / 2)} ${sy})">SIDE SEAL ${fmtA(sealW)}</text>`);
         p.push(`<text x="${L(W - sealW / 2)}" y="${sy}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#7f1d1d" transform="rotate(-90 ${L(W - sealW / 2)} ${sy})">SIDE SEAL ${fmtA(sealW)}</text>`);
@@ -1005,7 +1020,7 @@ export function DieLineGenerator() {
 
     /* header + id + footer */
     const head = `
-  <text x="${FX - 40}" y="56" font-size="30" font-weight="bold" fill="#111" letter-spacing="0.5">FINAL APPROVAL DIELINE — ${(T.name.split("·")[1] ?? T.name).trim().toUpperCase()}</text>
+  <text x="${FX - 40}" y="56" font-size="${AW < 1500 ? 24 : 30}" font-weight="bold" fill="#111" letter-spacing="0.5">FINAL APPROVAL DIELINE — ${(T.name.split("·")[1] ?? T.name).trim().toUpperCase()}</text>
   <text x="${FX - 40}" y="82" font-size="13" fill="#374151">Production-ready approval layout: ${fmtA(W)} W × ${fmtA(H)} H${needsG ? `, ${fmtA(G)} bottom gusset` : ""}${zipOn ? ", zipper" : ""}${tearNotch ? ", tear notches" : ""}, bleed, safe zone, seal areas</text>
   <rect x="${AW - 330}" y="34" width="280" height="46" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>
   <text x="${AW - 318}" y="53" font-size="11" font-weight="bold" fill="#111">MFX DIELINE ID</text>
