@@ -26,9 +26,20 @@ export type DielineRegistration = {
   dielineId: string;
   specSummary: string;
   meta: Record<string, string | number | boolean>;
-  files: { planning?: string; approval?: string };
+  files: {
+    planning?: string; // planning template SVG (customer)
+    approvalPdfB64?: string; // Final Approval Dieline PDF, base64 (customer)
+    internal?: string; // internal production/machine spec sheet SVG (team only)
+  };
   sendEmail: boolean;
 };
+
+const MAX_PDF_B64 = 1.2 * 1024 * 1024; // ~900KB binary
+
+function pdfB64IsSafe(b64: string): boolean {
+  if (!b64 || b64.length > MAX_PDF_B64) return false;
+  return b64.startsWith("JVBERi"); // "%PDF" in base64
+}
 
 function sha256(v: string) {
   return createHash("sha256").update(v).digest("hex");
@@ -109,10 +120,11 @@ export async function registerDielineDownload(
     console.error("Dieline dedupe check failed (continuing):", err);
   }
 
-  const files: { planning?: string; approval?: string } = {};
+  const files: { planning?: string; approvalPdfB64?: string; internal?: string } = {};
   if (input.files.planning && svgIsSafe(input.files.planning)) files.planning = input.files.planning;
-  if (input.files.approval && svgIsSafe(input.files.approval)) files.approval = input.files.approval;
-  if (!files.planning && !files.approval) return { ok: false, error: "No valid files to register." };
+  if (input.files.internal && svgIsSafe(input.files.internal)) files.internal = input.files.internal;
+  if (input.files.approvalPdfB64 && pdfB64IsSafe(input.files.approvalPdfB64)) files.approvalPdfB64 = input.files.approvalPdfB64;
+  if (!files.planning && !files.approvalPdfB64) return { ok: false, error: "No valid files to register." };
 
   // Numbered registry row (MDR-000001 …) via transactional counter
   const counterRef = adminDb.collection("counters").doc("dieline_registry");
@@ -149,9 +161,20 @@ export async function registerDielineDownload(
     await adminDb.collection("dieline_files").doc(row.id).set({
       registryNo,
       dielineId: input.dielineId.slice(0, 80),
-      ...files,
+      planning: files.planning ?? null,
+      internal: files.internal ?? null,
+      hasPdf: Boolean(files.approvalPdfB64),
       createdAt: FieldValue.serverTimestamp(),
     });
+    if (files.approvalPdfB64) {
+      // Exact PDF bytes stored separately — pull this doc to re-issue the same file
+      await adminDb.collection("dieline_files_pdf").doc(row.id).set({
+        registryNo,
+        dielineId: input.dielineId.slice(0, 80),
+        pdfB64: files.approvalPdfB64,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
   } catch (err) {
     console.error("Registry write failed:", err);
     return { ok: false, error: "Could not save your request — please try again." };
@@ -166,7 +189,7 @@ export async function registerDielineDownload(
       (err) => console.error("Dieline email failed:", err)
     );
   }
-  await notifyTeam({ customer, sku, email, notes, registryNo, dielineId: input.dielineId, specSummary: input.specSummary }).catch(() => {});
+  await notifyTeam({ customer, sku, email, notes, registryNo, dielineId: input.dielineId, specSummary: input.specSummary, internal: files.internal }).catch(() => {});
 
   return { ok: true, registryNo };
 }
@@ -181,13 +204,15 @@ async function transporter() {
 async function sendFilesEmail(p: {
   customer: string; sku: string; email: string; notes: string;
   registryNo: string; dielineId: string; specSummary: string;
-  files: { planning?: string; approval?: string };
+  files: { planning?: string; approvalPdfB64?: string; internal?: string };
 }) {
   const t = await transporter();
   if (!t) return;
   const attachments = [];
-  if (p.files.planning) attachments.push({ filename: `${p.dielineId}-planning.svg`, content: p.files.planning, contentType: "image/svg+xml" });
-  if (p.files.approval) attachments.push({ filename: `${p.dielineId}-approval.svg`, content: p.files.approval, contentType: "image/svg+xml" });
+  if (p.files.approvalPdfB64)
+    attachments.push({ filename: `${p.dielineId}-final-approval.pdf`, content: Buffer.from(p.files.approvalPdfB64, "base64"), contentType: "application/pdf" });
+  if (p.files.planning)
+    attachments.push({ filename: `${p.dielineId}-planning.svg`, content: p.files.planning, contentType: "image/svg+xml" });
 
   await t.sendMail({
     from: `"Microflex Dieline Tools" <${process.env.SMTP_USER}>`,
@@ -237,6 +262,7 @@ async function sendFilesEmail(p: {
 async function notifyTeam(p: {
   customer: string; sku: string; email: string; notes: string;
   registryNo: string; dielineId: string; specSummary: string;
+  internal?: string;
 }) {
   const t = await transporter();
   if (!t) return;
@@ -256,9 +282,13 @@ async function notifyTeam(p: {
       `Spec:         ${p.specSummary}`,
       `Notes:        ${p.notes || "—"}`,
       ``,
-      `Files stored in Firestore: dieline_registry / dieline_files.`,
+      `Files stored in Firestore: dieline_registry / dieline_files (+ dieline_files_pdf for the exact customer PDF).`,
+      p.internal ? `Internal production/machine spec sheet attached (NOT sent to the customer).` : ``,
     ].join("\n"),
     replyTo: p.email,
+    attachments: p.internal
+      ? [{ filename: `${p.dielineId}-INTERNAL-machine-spec.svg`, content: p.internal, contentType: "image/svg+xml" }]
+      : [],
   });
 }
 

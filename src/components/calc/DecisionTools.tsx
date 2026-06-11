@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { Field, Result, Disclaimer, inputStyle } from "./shared";
 import { MFX_LOGO_WHITE, MFX_LOGO_ASPECT } from "@/lib/brandLogoData";
 import { registerDielineDownload } from "@/app/actions/dielineRegistry";
+import { svgStringToPdfBase64 } from "@/lib/svgToPdf";
+import { buildZip, base64ToBytes } from "@/lib/miniZip";
 
 /* ---------------- Format finder quiz ---------------- */
 
@@ -514,6 +516,7 @@ export function DieLineGenerator() {
   const [registryNo, setRegistryNo] = useState<string | null>(null);
   const [lastRegisteredId, setLastRegisteredId] = useState<string | null>(null);
   const gateInFlight = useRef(false);
+  const [pdfB64, setPdfB64] = useState<string | null>(null);
 
   function pickType(id: string) {
     const t = DIELINE_TYPES.find((x) => x.id === id)!;
@@ -1188,10 +1191,83 @@ export function DieLineGenerator() {
   const approvalAvailable = isPanel;
   const svg = outMode === "approval" && approvalAvailable && valid ? buildApprovalSheet() : planningSvg;
 
-  function buildFiles() {
+  /** INTERNAL production dieline / machine spec sheet — table-only document
+   *  retained by Microflex (emailed to the team + stored in Firestore),
+   *  never delivered to the customer. */
+  function buildInternalSheet(): string {
+    const featureList = [
+      zipOn && (zipperType === "cr" ? "Child-resistant zipper" : "Zipper"),
+      tearNotch && "Tear notches",
+      hangType !== "none" && (hangType === "euro" ? "Euro slot" : "Hang hole"),
+      windowType !== "none" && (windowType === "window" ? "Registered window" : "Clear panel"),
+      spoutOn && "Spout", valveOn && "Valve", roundCorners && "Round corners",
+      laserScore && "Laser score", easyPeel && "Easy-peel seal", tamper && "Tamper-evident band",
+      spotVarnish && "Spot varnish layer", foil && "Foil/metalized film",
+    ].filter(Boolean).join(", ") || "None";
+
+    const rows: [string, string][] = [
+      ["Dieline ID", dielineId],
+      ["Date generated", new Date().toLocaleString("en-US")],
+      ["Customer / Brand", leadCustomer.trim() || "—"],
+      ["SKU / Product", leadSku.trim() || "—"],
+      ["Customer email", leadEmail.trim() || "—"],
+      ["Customer notes", leadNotes.trim() || "—"],
+      ["Format", (T.name.split("·")[1] ?? T.name).trim()],
+      ["Finished size", `${fmtDim(W)} W × ${fmtDim(H)} H`],
+      ["Flat size w/ bleed", `${fmtDim(W + bleed * 2)} × ${fmtDim(H + bleed * 2)} (${fmtDim(bleed)} bleed)`],
+      ...(needsG ? [[T.sideGusset ? "Side gusset (total)" : "Bottom gusset (total)", `${fmtDim(G)} — ${fmtDim(G / 2)} front half + ${fmtDim(G / 2)} back half`] as [string, string]] : []),
+      ["Top seal", T.sealTop ? fmtDim(topSealW) : "—"],
+      ["Bottom seal", T.bottomGusset ? "Gusset fold — no bottom seal line" : T.sealBottom ? fmtDim(sealW) : "—"],
+      ["Side seals", T.sealSides ? fmtDim(sealW) : T.fin ? `${T.fin === "lap" ? "Lap" : "Fin"} seal on reverse` : "—"],
+      ...(zipOn ? [["Zipper geometry", `℄ ${fmtDim(ZIP_CL_FROM_TOP)} from top · ${zipH}" track · notch in working zone`] as [string, string]] : []),
+      ["Safe zone inset", fmtDim(safety)],
+      ["Features", featureList],
+      ["Material structure", matStructure.trim() || "TBD"],
+      ["Print method", printMethod],
+      ["Color mode", colorMode],
+      ["Machine fill direction", fillDir === "top" ? "Top fill" : "Bottom fill"],
+      ["Front/back art orientation", artOrient === "standard" ? "Same orientation" : "Back inverted"],
+      ...(T.base === "web" ? [["Unwind", unwind] as [string, string], ["Eye mark", `${eyeMarkPos} edge`] as [string, string]] : []),
+      ["Prepared by", preparedBy.trim() || "Microflex Dieline Generator"],
+      ["Revision", "v001"],
+    ];
+
+    const rowH = 22;
+    const Wd = 760;
+    const top = 92;
+    const Hd = top + rows.length * rowH + 70;
+    const rowsSvg = rows
+      .map(([k, v], i) => {
+        const y = top + i * rowH;
+        return (
+          (i % 2 === 1 ? `<rect x="32" y="${y - 15}" width="${Wd - 64}" height="${rowH}" fill="#f8fafc"/>` : "") +
+          `<text x="44" y="${y}" font-size="11" font-weight="bold" fill="#475569">${k}</text>` +
+          `<text x="280" y="${y}" font-size="11" fill="#111111">${v}</text>`
+        );
+      })
+      .join("\n  ");
+
+    return xmlSafe(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${Wd} ${Hd}" font-family="Helvetica, Arial, sans-serif">
+  <rect width="${Wd}" height="${Hd}" fill="white"/>
+  <rect width="${Wd}" height="52" fill="#061421"/>
+  <rect y="49" width="${Wd}" height="3" fill="#00d8f2"/>
+  <image href="${MFX_LOGO_WHITE}" x="32" y="10" height="32" width="${32 * MFX_LOGO_ASPECT}" preserveAspectRatio="xMinYMid meet"/>
+  <text x="${Wd - 32}" y="24" text-anchor="end" font-size="12" font-weight="bold" fill="#00d8f2" letter-spacing="2">INTERNAL — PRODUCTION DIELINE / MACHINE SPEC</text>
+  <text x="${Wd - 32}" y="40" text-anchor="end" font-size="9" fill="#7fa6bd" letter-spacing="1.5">NOT FOR CUSTOMER DISTRIBUTION</text>
+  <text x="32" y="78" font-size="13" font-weight="bold" fill="#0f172a">${dielineId} — generation record &amp; machine specification</text>
+  ${rowsSvg}
+  <line x1="32" y1="${Hd - 38}" x2="${Wd - 32}" y2="${Hd - 38}" stroke="#00d8f2" stroke-width="1.2"/>
+  <text x="32" y="${Hd - 20}" font-size="9" fill="#64748b">Customer received: Final Approval Dieline PDF + planning SVG. Exact PDF stored in dieline_files_pdf. Confirm machine compatibility before production.</text>
+</svg>`);
+  }
+
+  async function buildFiles() {
+    const approvalSvg = approvalAvailable && valid ? buildApprovalSheet() : undefined;
+    const approvalPdfB64 = approvalSvg ? await svgStringToPdfBase64(approvalSvg) : undefined;
     return {
       planning: planningSvg || undefined,
-      approval: approvalAvailable && valid ? buildApprovalSheet() : undefined,
+      approvalPdfB64,
+      internal: buildInternalSheet(),
     };
   }
 
@@ -1202,6 +1278,7 @@ export function DieLineGenerator() {
     setGateBusy(true);
     setGateError(null);
     try {
+      const files = await buildFiles();
       const res = await registerDielineDownload({
         customer: leadCustomer,
         sku: leadSku,
@@ -1217,7 +1294,7 @@ export function DieLineGenerator() {
           bleed: bleedIn, safety: safetyIn, fillDir, artOrient,
           matStructure, printMethod, colorMode, preparedBy,
         },
-        files: buildFiles(),
+        files,
         sendEmail: true,
       });
       if (!res.ok) {
@@ -1226,6 +1303,7 @@ export function DieLineGenerator() {
       }
       setRegistryNo(res.registryNo ?? "");
       setLastRegisteredId(dielineId);
+      setPdfB64(files.approvalPdfB64 ?? null);
     } catch {
       setGateError("Something went wrong — please try again.");
     } finally {
@@ -1234,26 +1312,47 @@ export function DieLineGenerator() {
     }
   }
 
-  function downloadFile(kind: "planning" | "approval") {
-    const files = buildFiles();
-    const content = kind === "approval" ? files.approval : files.planning;
-    if (!content) return;
-    // Spec changed since registration? Log the new generation silently (no email spam).
+  function saveBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function downloadFile(kind: "pdf" | "planning" | "zip") {
+    if (!valid) return;
+    let pdf = pdfB64;
+    // Spec changed since registration? Regenerate, log silently, keep one email.
     if (lastRegisteredId && dielineId !== lastRegisteredId) {
       setLastRegisteredId(dielineId);
+      const files = await buildFiles();
+      pdf = files.approvalPdfB64 ?? null;
+      setPdfB64(pdf);
       void registerDielineDownload({
         customer: leadCustomer, sku: leadSku, email: leadEmail, notes: leadNotes,
         dielineId, specSummary: specLine, meta: { type: T.id, unit, width: w, height: h },
         files, sendEmail: false,
       }).catch(() => {});
+    } else if (!pdf && (kind === "pdf" || kind === "zip") && approvalAvailable) {
+      pdf = await svgStringToPdfBase64(buildApprovalSheet());
+      setPdfB64(pdf);
     }
-    const blob = new Blob([content], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = kind === "approval" ? `${dielineId}-approval.svg` : `${dielineId}-planning.svg`;
-    a.click();
-    URL.revokeObjectURL(url);
+
+    if (kind === "pdf") {
+      if (!pdf) return;
+      saveBlob(new Blob([base64ToBytes(pdf) as unknown as BlobPart], { type: "application/pdf" }), `${dielineId}-final-approval.pdf`);
+    } else if (kind === "planning") {
+      if (!planningSvg) return;
+      saveBlob(new Blob([planningSvg], { type: "image/svg+xml" }), `${dielineId}-planning.svg`);
+    } else {
+      const entries: { name: string; data: Uint8Array }[] = [];
+      if (pdf) entries.push({ name: `${dielineId}-final-approval.pdf`, data: base64ToBytes(pdf) });
+      if (planningSvg) entries.push({ name: `${dielineId}-planning.svg`, data: new TextEncoder().encode(planningSvg) });
+      if (entries.length === 0) return;
+      saveBlob(buildZip(entries), `${dielineId}-dieline-files.zip`);
+    }
   }
 
   const toggle = (label: string, value: boolean, set: (v: boolean) => void, enabled = true) =>
@@ -1578,9 +1677,9 @@ export function DieLineGenerator() {
           <div className="mb-4">
             <h3 className="text-base font-black text-paper">Get your dieline files</h3>
             <p className="mt-1 text-xs leading-relaxed text-muted">
-              Tell us who this dieline is for and we&rsquo;ll email both files (planning template
-              + approval sheet) and unlock instant download. Your generation is logged in the
-              Microflex dieline registry so our team can reference it when you quote.
+              Tell us who this dieline is for and we&rsquo;ll email your Final Approval Dieline
+              PDF and planning template, and unlock instant download. Your generation is logged
+              in the Microflex dieline registry so our team can reference it when you quote.
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
@@ -1625,17 +1724,23 @@ export function DieLineGenerator() {
             <span className="ml-3 font-mono text-[11px] text-muted">Registry {registryNo}</span>
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <button type="button" onClick={() => downloadFile("planning")} disabled={!valid} className="btn btn-primary" style={!valid ? { opacity: 0.5 } : undefined}>
-              ⬇ Download Planning Template
-            </button>
             {approvalAvailable && (
-              <button type="button" onClick={() => downloadFile("approval")} disabled={!valid} className="btn btn-primary" style={!valid ? { opacity: 0.5 } : undefined}>
-                ⬇ Download Approval Sheet
+              <button type="button" onClick={() => void downloadFile("pdf")} disabled={!valid} className="btn btn-primary" style={!valid ? { opacity: 0.5 } : undefined}>
+                ⬇ Final Approval Dieline (PDF)
               </button>
             )}
-            <a href="/artwork-guidelines" className="btn btn-secondary">Artwork Guidelines</a>
+            <button type="button" onClick={() => void downloadFile("planning")} disabled={!valid} className="btn btn-secondary" style={!valid ? { opacity: 0.5 } : undefined}>
+              ⬇ Planning Template (SVG)
+            </button>
+            <button type="button" onClick={() => void downloadFile("zip")} disabled={!valid} className="btn btn-secondary" style={!valid ? { opacity: 0.5 } : undefined}>
+              ⬇ All Files (ZIP)
+            </button>
             <a href="/#quote-form" className="btn btn-secondary">Request Production Die Line</a>
           </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-muted-dark">
+            A technical production/machine spec sheet for this generation is retained by
+            Microflex for quoting and production reference.
+          </p>
         </div>
       )}
       <Disclaimer>
