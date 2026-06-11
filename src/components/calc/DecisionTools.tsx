@@ -407,38 +407,183 @@ export function FinishVisualizer() {
 
 /* ---------------- Die-line template generator ---------------- */
 
+const SEAL_WIDTHS = [
+  { label: '1/4" seals', v: 0.25 },
+  { label: '3/8" seals', v: 0.375 },
+  { label: '1/2" seals', v: 0.5 },
+];
+
 export function DieLineGenerator() {
+  const [format, setFormat] = useState<"standup" | "flat">("standup");
+  const [unit, setUnit] = useState<"in" | "mm">("in");
   const [w, setW] = useState("6");
   const [h, setH] = useState("9");
   const [g, setG] = useState("3");
+  const [sealW, setSealW] = useState(0.375);
+  const [zipper, setZipper] = useState(true);
+  const [tearNotch, setTearNotch] = useState(true);
+  const [hangHole, setHangHole] = useState(false);
+  const [valve, setValve] = useState(false);
+  const [backPanel, setBackPanel] = useState(false);
 
-  const W = parseFloat(w) || 0;
-  const H = parseFloat(h) || 0;
-  const G = parseFloat(g) || 0;
-  const valid = W > 0 && H > 0 && G >= 0;
+  // Convert inputs to inches for geometry
+  const toIn = (v: string) => {
+    const n = parseFloat(v) || 0;
+    return unit === "mm" ? n / 25.4 : n;
+  };
+  const W = toIn(w);
+  const H = toIn(h);
+  const G = format === "standup" ? toIn(g) : 0;
+  const valid = W >= 2 && H >= 2 && (format === "flat" || (G >= 0.5 && G < H));
+
+  const fmtDim = (inches: number) =>
+    unit === "mm" ? `${Math.round(inches * 25.4)} mm` : `${inches}"`;
 
   const S = 40; // px per inch
   const bleed = 0.125;
-  const pad = 60;
-  const svgW = W * S + pad * 2;
-  const svgH = H * S + pad * 2;
+  const safety = 0.125;
+  const pad = 78;
+  const legendH = 120;
+  const zipH = 0.35; // zipper band height (in)
+  const zipGap = 0.15; // gap between top seal and zipper
+  const panelW = W * S;
+  const panelGap = 44;
+  const panels = backPanel ? 2 : 1;
+  const svgW = pad * 2 + panelW * panels + (backPanel ? panelGap : 0);
+  const svgH = pad * 2 + H * S + legendH;
+
+  // Vertical landmarks (inches from panel top)
+  const zipTop = sealW + zipGap;
+  const zipBottom = zipTop + zipH;
+  const safeTop = (zipper ? zipBottom : sealW) + safety;
+  const safeBottom = H - (format === "standup" ? G / 2 : sealW) - safety;
+  const safeLeft = sealW + safety;
+  const safeRight = W - sealW - safety;
+
+  const featureList = [
+    zipper && "press-to-close zipper",
+    tearNotch && "tear notches",
+    hangHole && "hang hole",
+    valve && "degassing valve",
+  ].filter(Boolean).join(", ") || "none";
+
+  function panelSvg(x0: number, label: string): string {
+    const L = (ix: number) => x0 + ix * S; // x inches → px
+    const T = (iy: number) => pad + iy * S; // y inches → px
+    const parts: string[] = [];
+
+    // Bleed
+    parts.push(`<rect x="${L(-bleed)}" y="${T(-bleed)}" width="${(W + bleed * 2) * S}" height="${(H + bleed * 2) * S}" rx="10" fill="none" stroke="#00a0c0" stroke-width="1.2" stroke-dasharray="8 5"/>`);
+    // Die line
+    parts.push(`<rect x="${L(0)}" y="${T(0)}" width="${W * S}" height="${H * S}" rx="6" fill="#ffffff" stroke="#e6007e" stroke-width="2.2"/>`);
+
+    // --- Seal zones (hatched) ---
+    const seal = (x: number, y: number, sw: number, sh: number) =>
+      parts.push(`<rect x="${x}" y="${y}" width="${sw}" height="${sh}" fill="url(#sealhatch)" stroke="#f59e0b" stroke-width="0.8" stroke-opacity="0.6"/>`);
+    // top seal
+    seal(L(0), T(0), W * S, sealW * S);
+    // side seals
+    seal(L(0), T(sealW), sealW * S, (H - sealW - (format === "standup" ? G / 2 : sealW)) * S);
+    seal(L(W - sealW), T(sealW), sealW * S, (H - sealW - (format === "standup" ? G / 2 : sealW)) * S);
+    // bottom: gusset zone (standup) or bottom seal (flat)
+    if (format === "standup") {
+      parts.push(`<rect x="${L(0)}" y="${T(H - G / 2)}" width="${W * S}" height="${(G / 2) * S}" fill="rgba(0,128,255,0.10)" stroke="none"/>`);
+      parts.push(`<line x1="${L(0)}" y1="${T(H - G / 2)}" x2="${L(W)}" y2="${T(H - G / 2)}" stroke="#0080ff" stroke-width="1.6" stroke-dasharray="10 6"/>`);
+      parts.push(`<text x="${L(W / 2)}" y="${T(H - G / 4) + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#0080ff">GUSSET FOLD ZONE — NO TEXT IN THE GUSSET FOLD</text>`);
+    } else {
+      seal(L(0), T(H - sealW), W * S, sealW * S);
+    }
+
+    // Seal zone labels
+    parts.push(`<text x="${L(W / 2)}" y="${T(sealW / 2) + 4}" text-anchor="middle" font-size="10.5" font-weight="bold" fill="#b45309">SEAL ZONE — NO TEXT</text>`);
+    parts.push(`<text x="${L(sealW / 2)}" y="${T(H / 2)}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#b45309" transform="rotate(-90 ${L(sealW / 2)} ${T(H / 2)})">SEAL ZONE — NO TEXT</text>`);
+    parts.push(`<text x="${L(W - sealW / 2)}" y="${T(H / 2)}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#b45309" transform="rotate(90 ${L(W - sealW / 2)} ${T(H / 2)})">SEAL ZONE — NO TEXT</text>`);
+
+    // --- Zipper ---
+    if (zipper) {
+      parts.push(`<rect x="${L(sealW)}" y="${T(zipTop)}" width="${(W - sealW * 2) * S}" height="${zipH * S}" fill="rgba(124,58,237,0.10)" stroke="#7c3aed" stroke-width="1.4"/>`);
+      parts.push(`<line x1="${L(sealW)}" y1="${T(zipTop + zipH / 2)}" x2="${L(W - sealW)}" y2="${T(zipTop + zipH / 2)}" stroke="#7c3aed" stroke-width="1" stroke-dasharray="3 3"/>`);
+      parts.push(`<text x="${L(W / 2)}" y="${T(zipTop) - 4}" text-anchor="middle" font-size="10" font-weight="bold" fill="#7c3aed">ZIPPER TRACK — KEEP CLEAR</text>`);
+    }
+
+    // --- Tear notches ---
+    if (tearNotch) {
+      const ny = zipper ? zipTop - 0.06 : sealW + 0.2;
+      const notch = (xEdge: number, dir: number) =>
+        parts.push(`<path d="M ${L(xEdge)} ${T(ny) - 6} l ${10 * dir} 6 l ${-10 * dir} 6 Z" fill="#16a34a"/>`);
+      notch(0, 1);
+      notch(W, -1);
+      parts.push(`<text x="${L(0) - 8}" y="${T(ny) + 4}" text-anchor="end" font-size="9.5" font-weight="bold" fill="#16a34a">TEAR NOTCH</text>`);
+    }
+
+    // --- Hang hole ---
+    if (hangHole) {
+      parts.push(`<circle cx="${L(W / 2)}" cy="${T(sealW / 2)}" r="${0.125 * S}" fill="none" stroke="#16a34a" stroke-width="1.6"/>`);
+      parts.push(`<text x="${L(W / 2) + 0.125 * S + 6}" y="${T(sealW / 2) + 3}" font-size="9" font-weight="bold" fill="#16a34a">HANG HOLE</text>`);
+    }
+
+    // --- Degassing valve ---
+    if (valve) {
+      const vx = L(W * 0.72), vy = T(safeTop + 0.6);
+      parts.push(`<circle cx="${vx}" cy="${vy}" r="${0.35 * S}" fill="none" stroke="#16a34a" stroke-width="1.4" stroke-dasharray="5 4"/>`);
+      parts.push(`<text x="${vx}" y="${vy + 0.35 * S + 12}" text-anchor="middle" font-size="9" font-weight="bold" fill="#16a34a">DEGASSING VALVE</text>`);
+    }
+
+    // --- Safe zone ---
+    if (safeBottom > safeTop && safeRight > safeLeft) {
+      parts.push(`<rect x="${L(safeLeft)}" y="${T(safeTop)}" width="${(safeRight - safeLeft) * S}" height="${(safeBottom - safeTop) * S}" fill="rgba(100,116,139,0.05)" stroke="#64748b" stroke-width="1.2" stroke-dasharray="4 4"/>`);
+      parts.push(`<text x="${L(W / 2)}" y="${T(safeTop) + 16}" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#475569">SAFE ZONE</text>`);
+      parts.push(`<text x="${L(W / 2)}" y="${T(safeTop) + 30}" text-anchor="middle" font-size="9" fill="#64748b">keep all text, logos &amp; barcodes inside this area</text>`);
+    }
+
+    // Panel label
+    parts.push(`<text x="${L(W / 2)}" y="${T(-bleed) - 8}" text-anchor="middle" font-size="11" font-weight="bold" fill="#334155">${label}</text>`);
+
+    // Dimension arrows (front panel only)
+    if (label.startsWith("FRONT")) {
+      const dy = T(H + bleed) + 22;
+      parts.push(`<line x1="${L(0)}" y1="${dy}" x2="${L(W)}" y2="${dy}" stroke="#64748b" stroke-width="1"/>`);
+      parts.push(`<line x1="${L(0)}" y1="${dy - 5}" x2="${L(0)}" y2="${dy + 5}" stroke="#64748b" stroke-width="1"/>`);
+      parts.push(`<line x1="${L(W)}" y1="${dy - 5}" x2="${L(W)}" y2="${dy + 5}" stroke="#64748b" stroke-width="1"/>`);
+      parts.push(`<text x="${L(W / 2)}" y="${dy + 16}" text-anchor="middle" font-size="11" font-weight="bold" fill="#334155">${fmtDim(W)}</text>`);
+      const dx = L(W + bleed) + 22;
+      parts.push(`<line x1="${dx}" y1="${T(0)}" x2="${dx}" y2="${T(H)}" stroke="#64748b" stroke-width="1"/>`);
+      parts.push(`<line x1="${dx - 5}" y1="${T(0)}" x2="${dx + 5}" y2="${T(0)}" stroke="#64748b" stroke-width="1"/>`);
+      parts.push(`<line x1="${dx - 5}" y1="${T(H)}" x2="${dx + 5}" y2="${T(H)}" stroke="#64748b" stroke-width="1"/>`);
+      parts.push(`<text x="${dx + 8}" y="${T(H / 2)}" font-size="11" font-weight="bold" fill="#334155" transform="rotate(90 ${dx + 8} ${T(H / 2)})" text-anchor="middle">${fmtDim(H)}</text>`);
+    }
+
+    return parts.join("\n  ");
+  }
+
+  const legendY = pad + H * S + 56;
+  const legendItems = [
+    `<g><line x1="0" y1="0" x2="26" y2="0" stroke="#e6007e" stroke-width="2.2"/><text x="32" y="4" font-size="10" fill="#334155">Die line (cut)</text></g>`,
+    `<g transform="translate(140,0)"><line x1="0" y1="0" x2="26" y2="0" stroke="#00a0c0" stroke-width="1.4" stroke-dasharray="8 5"/><text x="32" y="4" font-size="10" fill="#334155">Bleed — extend art 0.125" past die line</text></g>`,
+    `<g transform="translate(0,22)"><rect x="0" y="-7" width="26" height="14" fill="url(#sealhatch)" stroke="#f59e0b" stroke-width="0.8"/><text x="32" y="4" font-size="10" fill="#334155">Seal zone — no text</text></g>`,
+    `<g transform="translate(140,22)"><line x1="0" y1="0" x2="26" y2="0" stroke="#0080ff" stroke-width="1.6" stroke-dasharray="10 6"/><text x="32" y="4" font-size="10" fill="#334155">Gusset fold — no text in the gusset fold</text></g>`,
+    `<g transform="translate(0,44)"><rect x="0" y="-7" width="26" height="14" fill="rgba(100,116,139,0.08)" stroke="#64748b" stroke-width="1" stroke-dasharray="4 4"/><text x="32" y="4" font-size="10" fill="#334155">Safe Zone — all text, logos &amp; barcodes</text></g>`,
+    `<g transform="translate(140,44)"><circle cx="13" cy="0" r="6" fill="none" stroke="#16a34a" stroke-width="1.4"/><text x="32" y="4" font-size="10" fill="#334155">Features (zipper, notch, hang hole, valve)</text></g>`,
+  ].join("\n  ");
+
+  const title = `${format === "standup" ? "Stand-Up Pouch" : "Flat 3-Side-Seal Pouch"} ${fmtDim(W)} × ${fmtDim(H)}${format === "standup" ? ` + ${fmtDim(G)} gusset` : ""} · ${SEAL_WIDTHS.find((x) => x.v === sealW)?.label ?? ""} · features: ${featureList}`;
 
   const svg = valid
-    ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" font-family="monospace">
+    ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <pattern id="sealhatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="7" height="7" fill="rgba(245,158,11,0.10)"/>
+      <line x1="0" y1="0" x2="0" y2="7" stroke="rgba(245,158,11,0.55)" stroke-width="1.4"/>
+    </pattern>
+  </defs>
   <rect width="${svgW}" height="${svgH}" fill="white"/>
-  <!-- BLEED (extend art to here) -->
-  <rect x="${pad - bleed * S}" y="${pad - bleed * S}" width="${(W + bleed * 2) * S}" height="${(H + bleed * 2) * S}" fill="none" stroke="#00a0c0" stroke-width="1" stroke-dasharray="8 5"/>
-  <!-- DIE LINE (cut) -->
-  <rect x="${pad}" y="${pad}" width="${W * S}" height="${H * S}" fill="none" stroke="#e6007e" stroke-width="2"/>
-  <!-- SAFETY -->
-  <rect x="${pad + bleed * S}" y="${pad + bleed * S}" width="${(W - bleed * 2) * S}" height="${(H - bleed * 2) * S}" fill="none" stroke="#888" stroke-width="1" stroke-dasharray="3 4"/>
-  <!-- GUSSET FOLD -->
-  <line x1="${pad}" y1="${pad + (H - G / 2) * S}" x2="${pad + W * S}" y2="${pad + (H - G / 2) * S}" stroke="#0080ff" stroke-width="1.5" stroke-dasharray="10 6"/>
-  <text x="${pad + 6}" y="${pad + (H - G / 2) * S - 6}" font-size="11" fill="#0080ff">GUSSET FOLD (${G}" gusset)</text>
-  <text x="${pad}" y="${pad - bleed * S - 8}" font-size="11" fill="#00a0c0">BLEED — extend artwork 0.125" beyond die line</text>
-  <text x="${pad}" y="${pad + H * S + bleed * S + 18}" font-size="11" fill="#e6007e">DIE LINE — ${W}" x ${H}" front panel (cut)</text>
-  <text x="${pad + bleed * S + 6}" y="${pad + bleed * S + 16}" font-size="11" fill="#888">SAFETY — keep text/logos inside</text>
-  <text x="${pad}" y="22" font-size="13" fill="#222" font-weight="bold">MICROFLEX PLANNING TEMPLATE — Stand-Up Pouch ${W}x${H} +${G} gusset — request production die line before final art</text>
+  <text x="${pad - bleed * S}" y="26" font-size="13" font-weight="bold" fill="#0f172a">MICROFLEX PLANNING TEMPLATE — ${title}</text>
+  <text x="${pad - bleed * S}" y="42" font-size="10" fill="#64748b">Planning reference only — request the production die line from your Microflex specialist before building final artwork. microflexfilm.com/artwork-guidelines</text>
+  ${panelSvg(pad, "FRONT PANEL")}
+  ${backPanel ? panelSvg(pad + panelW + panelGap, "BACK PANEL") : ""}
+  <g transform="translate(${pad - bleed * S}, ${legendY})">
+  ${legendItems}
+  </g>
 </svg>`
     : "";
 
@@ -447,30 +592,128 @@ export function DieLineGenerator() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `microflex-dieline-template-${w}x${h}-g${g}.svg`;
+    a.download = `microflex-dieline-${format}-${w}x${h}${format === "standup" ? `-g${g}` : ""}${unit}.svg`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
+  const toggle = (
+    label: string,
+    value: boolean,
+    set: (v: boolean) => void
+  ) => (
+    <button
+      key={label}
+      type="button"
+      onClick={() => set(!value)}
+      className="flex items-center gap-2.5 rounded-full px-4 py-2 text-xs font-bold transition"
+      style={{
+        border: `1px solid ${value ? "rgba(0,216,242,0.7)" : "rgba(255,255,255,0.14)"}`,
+        background: value ? "rgba(0,216,242,0.12)" : "rgba(255,255,255,0.03)",
+        color: value ? "#34e3f5" : "#a9b9c8",
+      }}
+    >
+      <span
+        className="flex h-4 w-4 items-center justify-center rounded text-[10px] font-black"
+        style={{
+          border: `1.5px solid ${value ? "#00d8f2" : "rgba(255,255,255,0.3)"}`,
+          background: value ? "#00d8f2" : "transparent",
+          color: "#001018",
+        }}
+      >
+        {value ? "✓" : ""}
+      </span>
+      {label}
+    </button>
+  );
+
   return (
     <div className="grid gap-5">
-      <div className="grid gap-5 sm:grid-cols-3">
-        <Field label="Pouch width (in)">
-          <input style={inputStyle} type="number" min="0" step="0.25" value={w} onChange={(e) => setW(e.target.value)} />
+      {/* Format + units */}
+      <div className="flex flex-wrap items-center gap-2">
+        {(
+          [
+            ["standup", "Stand-Up Pouch"],
+            ["flat", "Flat / 3-Side-Seal"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setFormat(id)}
+            className="rounded-full px-4 py-2 text-xs font-extrabold transition"
+            style={{
+              border: `1px solid ${format === id ? "rgba(0,216,242,0.7)" : "rgba(255,255,255,0.14)"}`,
+              background: format === id ? "rgba(0,216,242,0.12)" : "rgba(255,255,255,0.03)",
+              color: format === id ? "#34e3f5" : "#a9b9c8",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+        <span className="mx-1 text-muted-dark">·</span>
+        {(["in", "mm"] as const).map((u) => (
+          <button
+            key={u}
+            type="button"
+            onClick={() => setUnit(u)}
+            className="rounded-full px-3 py-2 text-xs font-extrabold uppercase transition"
+            style={{
+              border: `1px solid ${unit === u ? "rgba(0,216,242,0.7)" : "rgba(255,255,255,0.14)"}`,
+              background: unit === u ? "rgba(0,216,242,0.12)" : "rgba(255,255,255,0.03)",
+              color: unit === u ? "#34e3f5" : "#a9b9c8",
+            }}
+          >
+            {u}
+          </button>
+        ))}
+      </div>
+
+      {/* Dimensions */}
+      <div className={`grid gap-5 ${format === "standup" ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+        <Field label={`Pouch width (${unit})`}>
+          <input style={inputStyle} type="number" min="0" step={unit === "mm" ? 5 : 0.25} value={w} onChange={(e) => setW(e.target.value)} />
         </Field>
-        <Field label="Pouch height (in)">
-          <input style={inputStyle} type="number" min="0" step="0.25" value={h} onChange={(e) => setH(e.target.value)} />
+        <Field label={`Pouch height (${unit})`}>
+          <input style={inputStyle} type="number" min="0" step={unit === "mm" ? 5 : 0.25} value={h} onChange={(e) => setH(e.target.value)} />
         </Field>
-        <Field label="Bottom gusset (in)">
-          <input style={inputStyle} type="number" min="0" step="0.25" value={g} onChange={(e) => setG(e.target.value)} />
+        {format === "standup" && (
+          <Field label={`Bottom gusset (${unit})`}>
+            <input style={inputStyle} type="number" min="0" step={unit === "mm" ? 5 : 0.25} value={g} onChange={(e) => setG(e.target.value)} />
+          </Field>
+        )}
+        <Field label="Seal width">
+          <select style={inputStyle} value={sealW} onChange={(e) => setSealW(parseFloat(e.target.value))}>
+            {SEAL_WIDTHS.map((x) => (
+              <option key={x.v} value={x.v}>{x.label}</option>
+            ))}
+          </select>
         </Field>
       </div>
 
-      {valid && (
-        <div className="overflow-hidden rounded-2xl bg-white p-2" style={{ border: "1px solid rgba(255,255,255,0.2)" }}>
+      {/* Feature toggles */}
+      <div>
+        <div className="kicker mb-2 text-[10px]">Pouch features</div>
+        <div className="flex flex-wrap gap-2">
+          {toggle("Zipper", zipper, setZipper)}
+          {toggle("Tear notches", tearNotch, setTearNotch)}
+          {toggle("Hang hole", hangHole, setHangHole)}
+          {toggle("Degassing valve", valve, setValve)}
+          {toggle("Include back panel", backPanel, setBackPanel)}
+        </div>
+      </div>
+
+      {valid ? (
+        <div className="overflow-x-auto rounded-2xl bg-white p-2" style={{ border: "1px solid rgba(255,255,255,0.2)" }}>
           {/* eslint-disable-next-line react/no-danger */}
           <div dangerouslySetInnerHTML={{ __html: svg }} />
         </div>
+      ) : (
+        <p className="rounded-2xl border border-red-400/30 bg-red-400/5 p-4 text-sm text-red-200">
+          Enter a width and height of at least 2{unit === "mm" ? "50 mm" : '"'}
+          {format === "standup" ? " and a gusset smaller than the pouch height" : ""} to
+          generate the template.
+        </p>
       )}
 
       <div className="flex flex-wrap gap-3">
@@ -478,12 +721,14 @@ export function DieLineGenerator() {
           ⬇ Download SVG Template
         </button>
         <a href="/artwork-guidelines" className="btn btn-secondary">Artwork Guidelines</a>
+        <a href="/#quote-form" className="btn btn-secondary">Request Production Die Line</a>
       </div>
       <Disclaimer>
-        This is a planning template for the front panel — bleed, die line, safety margin, and
-        gusset fold zone at correct proportions. Production die lines include seal areas, back
-        panel, and machine-specific allowances; request the production die line from your
-        specialist before building final artwork.
+        Planning template with seal zones, gusset fold, zipper track, and Safe Zone called out
+        at correct proportions — so artwork accounts for every no-text area before design
+        begins. Production die lines add machine-specific allowances and exact feature
+        placement; request the production die line from your specialist before building final
+        artwork.
       </Disclaimer>
     </div>
   );

@@ -197,13 +197,14 @@ export default function CalculatorsPage() {
               id="dieline-generator"
               n="1.5"
               title="Die-Line Template Generator"
-              answers="“What dimensions should my designer build the artwork to?”"
+              answers="“What dimensions and no-text zones should my designer build the artwork around?”"
               how={[
-                "Enter your pouch width, height, and gusset.",
-                "Preview the template — die line, 0.125″ bleed, safety margin, and gusset fold at true proportions.",
+                "Choose the format (stand-up or flat), units, dimensions, and seal width.",
+                "Toggle the features your pouch will have — zipper, tear notches, hang hole, degassing valve, back panel.",
+                "Preview the template: die line, bleed, hatched seal zones, gusset fold, zipper track, and the Safe Zone, all at true proportions with dimension callouts and a legend.",
                 "Download the SVG and hand it to your designer as the planning canvas.",
               ]}
-              why="Most artwork rejections trace back to art built without a die line — wrong size, no bleed, text in the gusset fold. Starting from a dimensioned template prevents the most common (and most avoidable) production delay."
+              why="Most artwork rejections trace back to the same three mistakes: text in the seal zone, text in the gusset fold, and critical elements outside the Safe Zone. This template draws every no-text area before design starts — so the file that reaches prepress was built around production reality, not discovered against it."
             >
               <DieLineGenerator />
             </ToolCard>
