@@ -199,8 +199,8 @@ export default function CalculatorsPage() {
               title="Die-Line Template Generator"
               answers="“What dimensions and no-text zones should my designer build the artwork around?”"
               how={[
-                "Choose the format (stand-up or flat), units, dimensions, and seal width.",
-                "Toggle the features your pouch will have — zipper, tear notches, hang hole, degassing valve, back panel.",
+                "Pick one of 20 dieline types — pouches, gussets, fin seals, stick packs, sleeves, rollstock, lidstock, header bags — each labeled with its common use.",
+                "Set units, dimensions, and seal width; toggle the features that dieline supports — zipper, tear notches, hang hole, degassing valve.",
                 "Preview the template: die line, bleed, hatched seal zones, gusset fold, zipper track, and the Safe Zone, all at true proportions with dimension callouts and a legend.",
                 "Download the SVG and hand it to your designer as the planning canvas.",
               ]}
