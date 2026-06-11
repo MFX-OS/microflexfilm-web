@@ -532,7 +532,7 @@ export function DieLineGenerator() {
   const zipH = 0.35;
   const zipGap = 0.15;
   const headerH = 1.0;
-  const titleH = 58;
+  const titleH = 64 + 44; // brand band + spec line
 
   const zipOn = Boolean(T.zipperOk) && zipperType !== "none";
   const valveOn = Boolean(T.valveOk) && valve;
@@ -826,7 +826,37 @@ export function DieLineGenerator() {
       default: return `<circle cx="12" cy="0" r="5.5" fill="none" stroke="#16a34a" stroke-width="1.4"/>`;
     }
   };
-  const legendY = titleH + pad + H * S + pad - 8;
+  // Layout: put the legend beside narrow drawings (stick packs etc.) to use the space
+  const sideLegend = W * S <= 300 && T.base !== "web";
+  const legendContentH = legendRows.length * 19 + finishNotes.length * 16 + 10;
+  const LEGEND_W = 380;
+  const bandH = 64;
+  const footH = 46;
+  const specY = bandH + 24;
+  const drawTop = bandH + 44; // replaces titleH spacing inside builders via titleH constant
+  const planW = sideLegend
+    ? Math.max(660, pad + W * S + 70 + LEGEND_W + 40)
+    : Math.max(620, pad * 2 + W * S + 56);
+  const planH = sideLegend
+    ? drawTop + Math.max(pad + H * S + pad + 40, legendContentH + 60) + footH
+    : drawTop + pad + H * S + pad + legendContentH + 26 + footH;
+  const legendX = sideLegend ? pad + W * S + 86 : pad - bleed * S;
+  const legendYpos = sideLegend ? drawTop + 24 : drawTop + pad + H * S + pad - 8;
+
+  const brandBand = `
+  <rect width="${planW}" height="${bandH}" fill="#061421"/>
+  <rect x="0" y="${bandH - 3}" width="${planW}" height="3" fill="#00d8f2"/>
+  <text x="${pad - bleed * S}" y="${bandH / 2 + 1}" font-size="21" font-weight="bold" fill="#ffffff" letter-spacing="3">MICROFLEX<tspan fill="#00d8f2">.</tspan></text>
+  <text x="${pad - bleed * S}" y="${bandH / 2 + 17}" font-size="8" fill="#7fa6bd" letter-spacing="3.5">FILM CORPORATION · RIVERSIDE, CA</text>
+  <text x="${planW - 28}" y="${bandH / 2 + 1}" text-anchor="end" font-size="12" font-weight="bold" fill="#00d8f2" letter-spacing="3">DIELINE PLANNING TEMPLATE</text>
+  <text x="${planW - 28}" y="${bandH / 2 + 17}" text-anchor="end" font-size="8.5" fill="#7fa6bd" letter-spacing="1.5">GENERATED AT MICROFLEXFILM.COM/CALCULATORS</text>`;
+
+  const brandFoot = `
+  <line x1="${pad - bleed * S}" y1="${planH - footH + 6}" x2="${planW - 28}" y2="${planH - footH + 6}" stroke="#00d8f2" stroke-width="1.4"/>
+  <text x="${pad - bleed * S}" y="${planH - footH + 24}" font-size="10" font-weight="bold" fill="#06121d">microflexfilm.com · info@microflexfilm.com · 909.360.9066</text>
+  <text x="${planW - 28}" y="${planH - footH + 24}" text-anchor="end" font-size="10" font-style="italic" fill="#0087a8">Flexible Packaging. Engineered to Perform.</text>
+  <text x="${pad - bleed * S}" y="${planH - footH + 38}" font-size="8.5" fill="#94a3b8">Planning reference only — request the production die line from your Microflex specialist before final artwork.</text>`;
+
   const legendSvg = legendRows
     .map(
       (row, i) =>
@@ -1027,35 +1057,41 @@ export function DieLineGenerator() {
   <text x="${AW - 318}" y="70" font-size="12" font-family="monospace" fill="#111">${dielineId}</text>`;
     const footer = `<text x="${FX - 40}" y="${AH - 18}" font-size="11.5" fill="#111">Production rule: all critical artwork must remain inside the safe zone and outside seal/fold/zipper/notch areas. Dieline layers should remain vector, named, and locked before customer proofing.</text>`;
 
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${AW} ${AH}" font-family="Helvetica, Arial, sans-serif">
+    const TOPB = 48;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${AW} ${AH + TOPB}" font-family="Helvetica, Arial, sans-serif">
   <defs>
     <marker id="arrL" markerWidth="10" markerHeight="10" refX="2" refY="3" orient="auto"><path d="M8 0 L2 3 L8 6" fill="none" stroke="#111" stroke-width="1.4"/></marker>
     <marker id="arrR" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="none" stroke="#111" stroke-width="1.4"/></marker>
     <marker id="arrU" markerWidth="10" markerHeight="10" refX="3" refY="2" orient="auto"><path d="M0 8 L3 2 L6 8" fill="none" stroke="#111" stroke-width="1.4"/></marker>
     <marker id="arrD" markerWidth="10" markerHeight="10" refX="3" refY="6" orient="auto"><path d="M0 0 L3 6 L6 0" fill="none" stroke="#111" stroke-width="1.4"/></marker>
   </defs>
-  <rect width="${AW}" height="${AH}" fill="white"/>${head}
+  <rect width="${AW}" height="${AH + TOPB}" fill="white"/>
+  <rect width="${AW}" height="${TOPB}" fill="#061421"/>
+  <rect y="${TOPB - 3}" width="${AW}" height="3" fill="#00d8f2"/>
+  <text x="${FX - 40}" y="${TOPB / 2 + 5}" font-size="17" font-weight="bold" fill="#ffffff" letter-spacing="3">MICROFLEX<tspan fill="#00d8f2">.</tspan> <tspan font-size="8" fill="#7fa6bd" letter-spacing="2.5">FILM CORPORATION</tspan></text>
+  <text x="${AW - 40}" y="${TOPB / 2 + 5}" text-anchor="end" font-size="10" font-weight="bold" fill="#00d8f2" letter-spacing="2">MICROFLEXFILM.COM · 909.360.9066</text>
+  <g transform="translate(0, ${TOPB})">${head}
   ${p.join("\n  ")}
   ${footer}
+  </g>
 </svg>`;
   }
 
+  
   const planningSvg = valid
-    ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" font-family="Helvetica, Arial, sans-serif">
+    ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${planW} ${planH}" font-family="Helvetica, Arial, sans-serif">
   <defs>
     <pattern id="sealhatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
       <rect width="7" height="7" fill="rgba(245,158,11,0.09)"/>
       <line x1="0" y1="0" x2="0" y2="7" stroke="rgba(245,158,11,0.5)" stroke-width="1.3"/>
     </pattern>
   </defs>
-  <rect width="${svgW}" height="${svgH}" fill="white"/>
-  <text x="${svgW / 2}" y="24" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">MICROFLEX PLANNING TEMPLATE</text>
-  <text x="${svgW / 2}" y="41" text-anchor="middle" font-size="10.5" fill="#475569">${specLine}</text>
+  <rect width="${planW}" height="${planH}" fill="white"/>${brandBand}
+  <text x="${pad - bleed * S}" y="${specY}" font-size="11.5" font-weight="bold" fill="#06121d">${specLine}</text>
   ${buildSvgBody()}
-  <g transform="translate(${pad - bleed * S}, ${legendY})">
-  ${legendSvg}
-  </g>
-  <text x="${svgW / 2}" y="${svgH - 8}" text-anchor="middle" font-size="9" fill="#94a3b8">Planning reference only — request the production die line before final artwork · microflexfilm.com/artwork-guidelines</text>
+  <g transform="translate(${legendX}, ${legendYpos})">
+  ${sideLegend ? `<text x="0" y="-6" font-size="10" font-weight="bold" fill="#0087a8" letter-spacing="2">LEGEND</text><g transform="translate(0, 14)">${legendSvg}</g>` : legendSvg}
+  </g>${brandFoot}
 </svg>`
     : "";
 
