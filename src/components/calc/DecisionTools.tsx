@@ -426,7 +426,6 @@ export function DieLineGenerator() {
   const [valve, setValve] = useState(false);
   const [backPanel, setBackPanel] = useState(false);
 
-  // Convert inputs to inches for geometry
   const toIn = (v: string) => {
     const n = parseFloat(v) || 0;
     return unit === "mm" ? n / 25.4 : n;
@@ -439,20 +438,16 @@ export function DieLineGenerator() {
   const fmtDim = (inches: number) =>
     unit === "mm" ? `${Math.round(inches * 25.4)} mm` : `${inches}"`;
 
-  const S = 40; // px per inch
+  const S = 40;
   const bleed = 0.125;
   const safety = 0.125;
-  const pad = 78;
-  const legendH = 120;
-  const zipH = 0.35; // zipper band height (in)
-  const zipGap = 0.15; // gap between top seal and zipper
+  const pad = 64;
+  const zipH = 0.35;
+  const zipGap = 0.15;
   const panelW = W * S;
   const panelGap = 44;
-  const panels = backPanel ? 2 : 1;
-  const svgW = pad * 2 + panelW * panels + (backPanel ? panelGap : 0);
-  const svgH = pad * 2 + H * S + legendH;
+  const titleH = 54;
 
-  // Vertical landmarks (inches from panel top)
   const zipTop = sealW + zipGap;
   const zipBottom = zipTop + zipH;
   const safeTop = (zipper ? zipBottom : sealW) + safety;
@@ -460,130 +455,165 @@ export function DieLineGenerator() {
   const safeLeft = sealW + safety;
   const safeRight = W - sealW - safety;
 
-  const featureList = [
-    zipper && "press-to-close zipper",
-    tearNotch && "tear notches",
-    hangHole && "hang hole",
-    valve && "degassing valve",
-  ].filter(Boolean).join(", ") || "none";
+  /* Numbered legend — words live here, not on the drawing */
+  const legendRows: { n: number; swatch: string; text: string }[] = [];
+  let nCount = 0;
+  const add = (swatch: string, text: string) => {
+    nCount += 1;
+    legendRows.push({ n: nCount, swatch, text });
+  };
+  add("die", "Die line (cut edge)");
+  add("bleed", 'Bleed — extend background art 0.125" past the die line');
+  add("seal", "Seal zone — no text in the seal zone");
+  if (zipper) add("zip", "Zipper track — keep this band clear");
+  if (tearNotch) add("feat", "Tear notches");
+  if (format === "standup") add("fold", "Gusset fold — no text in the gusset fold");
+  add("safe", "Safe Zone — keep all text, logos & barcodes inside");
+  if (hangHole) add("feat", "Hang hole");
+  if (valve) add("feat", "Degassing valve location");
 
-  function panelSvg(x0: number, label: string): string {
-    const L = (ix: number) => x0 + ix * S; // x inches → px
-    const T = (iy: number) => pad + iy * S; // y inches → px
+  const nFor = (swatch: string) => legendRows.find((r) => r.swatch === swatch)?.n ?? 0;
+
+  const legendH = legendRows.length * 19 + 26;
+  const panels = backPanel ? 2 : 1;
+  const svgW = Math.max(560, pad * 2 + panelW * panels + (backPanel ? panelGap : 0) + 56);
+  const svgH = titleH + pad + H * S + pad + legendH;
+
+  function panelSvg(x0: number, label: string, withDims: boolean): string {
+    const L = (ix: number) => x0 + ix * S;
+    const T = (iy: number) => titleH + pad + iy * S;
     const parts: string[] = [];
+
+    const mark = (cx: number, cy: number, n: number) =>
+      parts.push(
+        `<circle cx="${cx}" cy="${cy}" r="9" fill="white" stroke="#334155" stroke-width="1.3"/>` +
+        `<text x="${cx}" y="${cy + 3.5}" text-anchor="middle" font-size="10" font-weight="bold" fill="#334155">${n}</text>`
+      );
 
     // Bleed
     parts.push(`<rect x="${L(-bleed)}" y="${T(-bleed)}" width="${(W + bleed * 2) * S}" height="${(H + bleed * 2) * S}" rx="10" fill="none" stroke="#00a0c0" stroke-width="1.2" stroke-dasharray="8 5"/>`);
     // Die line
     parts.push(`<rect x="${L(0)}" y="${T(0)}" width="${W * S}" height="${H * S}" rx="6" fill="#ffffff" stroke="#e6007e" stroke-width="2.2"/>`);
 
-    // --- Seal zones (hatched) ---
+    // Seal zones (hatch only — words in legend)
     const seal = (x: number, y: number, sw: number, sh: number) =>
-      parts.push(`<rect x="${x}" y="${y}" width="${sw}" height="${sh}" fill="url(#sealhatch)" stroke="#f59e0b" stroke-width="0.8" stroke-opacity="0.6"/>`);
-    // top seal
+      parts.push(`<rect x="${x}" y="${y}" width="${sw}" height="${sh}" fill="url(#sealhatch)" stroke="#f59e0b" stroke-width="0.7" stroke-opacity="0.55"/>`);
     seal(L(0), T(0), W * S, sealW * S);
-    // side seals
-    seal(L(0), T(sealW), sealW * S, (H - sealW - (format === "standup" ? G / 2 : sealW)) * S);
-    seal(L(W - sealW), T(sealW), sealW * S, (H - sealW - (format === "standup" ? G / 2 : sealW)) * S);
-    // bottom: gusset zone (standup) or bottom seal (flat)
+    const sideSealH = (H - sealW - (format === "standup" ? G / 2 : sealW)) * S;
+    seal(L(0), T(sealW), sealW * S, sideSealH);
+    seal(L(W - sealW), T(sealW), sealW * S, sideSealH);
+    if (format === "flat") seal(L(0), T(H - sealW), W * S, sealW * S);
+
+    // Gusset fold zone
     if (format === "standup") {
-      parts.push(`<rect x="${L(0)}" y="${T(H - G / 2)}" width="${W * S}" height="${(G / 2) * S}" fill="rgba(0,128,255,0.10)" stroke="none"/>`);
-      parts.push(`<line x1="${L(0)}" y1="${T(H - G / 2)}" x2="${L(W)}" y2="${T(H - G / 2)}" stroke="#0080ff" stroke-width="1.6" stroke-dasharray="10 6"/>`);
-      parts.push(`<text x="${L(W / 2)}" y="${T(H - G / 4) + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#0080ff">GUSSET FOLD ZONE — NO TEXT IN THE GUSSET FOLD</text>`);
-    } else {
-      seal(L(0), T(H - sealW), W * S, sealW * S);
+      parts.push(`<rect x="${L(0)}" y="${T(H - G / 2)}" width="${W * S}" height="${(G / 2) * S}" fill="rgba(0,128,255,0.08)"/>`);
+      parts.push(`<line x1="${L(0)}" y1="${T(H - G / 2)}" x2="${L(W)}" y2="${T(H - G / 2)}" stroke="#0080ff" stroke-width="1.5" stroke-dasharray="10 6"/>`);
     }
 
-    // Seal zone labels
-    parts.push(`<text x="${L(W / 2)}" y="${T(sealW / 2) + 4}" text-anchor="middle" font-size="10.5" font-weight="bold" fill="#b45309">SEAL ZONE — NO TEXT</text>`);
-    parts.push(`<text x="${L(sealW / 2)}" y="${T(H / 2)}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#b45309" transform="rotate(-90 ${L(sealW / 2)} ${T(H / 2)})">SEAL ZONE — NO TEXT</text>`);
-    parts.push(`<text x="${L(W - sealW / 2)}" y="${T(H / 2)}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#b45309" transform="rotate(90 ${L(W - sealW / 2)} ${T(H / 2)})">SEAL ZONE — NO TEXT</text>`);
-
-    // --- Zipper ---
+    // Zipper
     if (zipper) {
-      parts.push(`<rect x="${L(sealW)}" y="${T(zipTop)}" width="${(W - sealW * 2) * S}" height="${zipH * S}" fill="rgba(124,58,237,0.10)" stroke="#7c3aed" stroke-width="1.4"/>`);
+      parts.push(`<rect x="${L(sealW)}" y="${T(zipTop)}" width="${(W - sealW * 2) * S}" height="${zipH * S}" fill="rgba(124,58,237,0.10)" stroke="#7c3aed" stroke-width="1.3"/>`);
       parts.push(`<line x1="${L(sealW)}" y1="${T(zipTop + zipH / 2)}" x2="${L(W - sealW)}" y2="${T(zipTop + zipH / 2)}" stroke="#7c3aed" stroke-width="1" stroke-dasharray="3 3"/>`);
-      parts.push(`<text x="${L(W / 2)}" y="${T(zipTop) - 4}" text-anchor="middle" font-size="10" font-weight="bold" fill="#7c3aed">ZIPPER TRACK — KEEP CLEAR</text>`);
     }
 
-    // --- Tear notches ---
+    // Tear notches
+    const notchY = zipper ? zipTop - 0.06 : sealW + 0.2;
     if (tearNotch) {
-      const ny = zipper ? zipTop - 0.06 : sealW + 0.2;
-      const notch = (xEdge: number, dir: number) =>
-        parts.push(`<path d="M ${L(xEdge)} ${T(ny) - 6} l ${10 * dir} 6 l ${-10 * dir} 6 Z" fill="#16a34a"/>`);
-      notch(0, 1);
-      notch(W, -1);
-      parts.push(`<text x="${L(0) - 8}" y="${T(ny) + 4}" text-anchor="end" font-size="9.5" font-weight="bold" fill="#16a34a">TEAR NOTCH</text>`);
+      parts.push(`<path d="M ${L(0)} ${T(notchY) - 6} l 10 6 l -10 6 Z" fill="#16a34a"/>`);
+      parts.push(`<path d="M ${L(W)} ${T(notchY) - 6} l -10 6 l 10 6 Z" fill="#16a34a"/>`);
     }
 
-    // --- Hang hole ---
+    // Hang hole
     if (hangHole) {
-      parts.push(`<circle cx="${L(W / 2)}" cy="${T(sealW / 2)}" r="${0.125 * S}" fill="none" stroke="#16a34a" stroke-width="1.6"/>`);
-      parts.push(`<text x="${L(W / 2) + 0.125 * S + 6}" y="${T(sealW / 2) + 3}" font-size="9" font-weight="bold" fill="#16a34a">HANG HOLE</text>`);
+      parts.push(`<circle cx="${L(W / 2)}" cy="${T(sealW / 2)}" r="${0.125 * S}" fill="none" stroke="#16a34a" stroke-width="1.5"/>`);
     }
 
-    // --- Degassing valve ---
+    // Valve
+    const vx = L(W * 0.74), vy = T(safeTop + 0.55);
     if (valve) {
-      const vx = L(W * 0.72), vy = T(safeTop + 0.6);
-      parts.push(`<circle cx="${vx}" cy="${vy}" r="${0.35 * S}" fill="none" stroke="#16a34a" stroke-width="1.4" stroke-dasharray="5 4"/>`);
-      parts.push(`<text x="${vx}" y="${vy + 0.35 * S + 12}" text-anchor="middle" font-size="9" font-weight="bold" fill="#16a34a">DEGASSING VALVE</text>`);
+      parts.push(`<circle cx="${vx}" cy="${vy}" r="${0.32 * S}" fill="none" stroke="#16a34a" stroke-width="1.3" stroke-dasharray="5 4"/>`);
     }
 
-    // --- Safe zone ---
+    // Safe Zone — single quiet label
     if (safeBottom > safeTop && safeRight > safeLeft) {
-      parts.push(`<rect x="${L(safeLeft)}" y="${T(safeTop)}" width="${(safeRight - safeLeft) * S}" height="${(safeBottom - safeTop) * S}" fill="rgba(100,116,139,0.05)" stroke="#64748b" stroke-width="1.2" stroke-dasharray="4 4"/>`);
-      parts.push(`<text x="${L(W / 2)}" y="${T(safeTop) + 16}" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#475569">SAFE ZONE</text>`);
-      parts.push(`<text x="${L(W / 2)}" y="${T(safeTop) + 30}" text-anchor="middle" font-size="9" fill="#64748b">keep all text, logos &amp; barcodes inside this area</text>`);
+      parts.push(`<rect x="${L(safeLeft)}" y="${T(safeTop)}" width="${(safeRight - safeLeft) * S}" height="${(safeBottom - safeTop) * S}" fill="rgba(100,116,139,0.045)" stroke="#64748b" stroke-width="1.1" stroke-dasharray="4 4"/>`);
+      parts.push(`<text x="${L((safeLeft + safeRight) / 2)}" y="${T((safeTop + safeBottom) / 2) + 4}" text-anchor="middle" font-size="12" font-weight="bold" fill="#94a3b8" letter-spacing="2">SAFE ZONE</text>`);
     }
+
+    // Numbered markers (drawing references → legend)
+    mark(L(W * 0.5) + (hangHole ? 26 : 0), T(0), nFor("die"));
+    mark(L(-bleed), T(H * 0.12), nFor("bleed"));
+    mark(L(W - sealW / 2), T(H * 0.4), nFor("seal"));
+    if (zipper) mark(L(W * 0.5), T(zipTop + zipH / 2), nFor("zip"));
+    if (tearNotch) mark(L(0) - 18, T(notchY), nFor("feat"));
+    if (format === "standup") mark(L(W * 0.5), T(H - G / 4), nFor("fold"));
+    if (safeBottom > safeTop) mark(L(safeLeft) + 16, T(safeTop) + 16, nFor("safe"));
+    if (hangHole) mark(L(W / 2) - 24, T(sealW / 2), legendRows.find((r) => r.text === "Hang hole")?.n ?? 0);
+    if (valve) mark(vx, vy, legendRows.find((r) => r.text === "Degassing valve location")?.n ?? 0);
 
     // Panel label
-    parts.push(`<text x="${L(W / 2)}" y="${T(-bleed) - 8}" text-anchor="middle" font-size="11" font-weight="bold" fill="#334155">${label}</text>`);
+    parts.push(`<text x="${L(W / 2)}" y="${T(-bleed) - 10}" text-anchor="middle" font-size="11" font-weight="bold" fill="#334155" letter-spacing="1.5">${label}</text>`);
 
-    // Dimension arrows (front panel only)
-    if (label.startsWith("FRONT")) {
-      const dy = T(H + bleed) + 22;
-      parts.push(`<line x1="${L(0)}" y1="${dy}" x2="${L(W)}" y2="${dy}" stroke="#64748b" stroke-width="1"/>`);
-      parts.push(`<line x1="${L(0)}" y1="${dy - 5}" x2="${L(0)}" y2="${dy + 5}" stroke="#64748b" stroke-width="1"/>`);
-      parts.push(`<line x1="${L(W)}" y1="${dy - 5}" x2="${L(W)}" y2="${dy + 5}" stroke="#64748b" stroke-width="1"/>`);
-      parts.push(`<text x="${L(W / 2)}" y="${dy + 16}" text-anchor="middle" font-size="11" font-weight="bold" fill="#334155">${fmtDim(W)}</text>`);
-      const dx = L(W + bleed) + 22;
-      parts.push(`<line x1="${dx}" y1="${T(0)}" x2="${dx}" y2="${T(H)}" stroke="#64748b" stroke-width="1"/>`);
-      parts.push(`<line x1="${dx - 5}" y1="${T(0)}" x2="${dx + 5}" y2="${T(0)}" stroke="#64748b" stroke-width="1"/>`);
-      parts.push(`<line x1="${dx - 5}" y1="${T(H)}" x2="${dx + 5}" y2="${T(H)}" stroke="#64748b" stroke-width="1"/>`);
-      parts.push(`<text x="${dx + 8}" y="${T(H / 2)}" font-size="11" font-weight="bold" fill="#334155" transform="rotate(90 ${dx + 8} ${T(H / 2)})" text-anchor="middle">${fmtDim(H)}</text>`);
+    // Dimensions
+    if (withDims) {
+      const dy = T(H + bleed) + 20;
+      parts.push(`<line x1="${L(0)}" y1="${dy}" x2="${L(W)}" y2="${dy}" stroke="#94a3b8" stroke-width="1"/>`);
+      parts.push(`<line x1="${L(0)}" y1="${dy - 5}" x2="${L(0)}" y2="${dy + 5}" stroke="#94a3b8" stroke-width="1"/>`);
+      parts.push(`<line x1="${L(W)}" y1="${dy - 5}" x2="${L(W)}" y2="${dy + 5}" stroke="#94a3b8" stroke-width="1"/>`);
+      parts.push(`<text x="${L(W / 2)}" y="${dy + 15}" text-anchor="middle" font-size="11" font-weight="bold" fill="#334155">${fmtDim(W)}</text>`);
+      const dx = L(W + bleed) + 20;
+      parts.push(`<line x1="${dx}" y1="${T(0)}" x2="${dx}" y2="${T(H)}" stroke="#94a3b8" stroke-width="1"/>`);
+      parts.push(`<line x1="${dx - 5}" y1="${T(0)}" x2="${dx + 5}" y2="${T(0)}" stroke="#94a3b8" stroke-width="1"/>`);
+      parts.push(`<line x1="${dx - 5}" y1="${T(H)}" x2="${dx + 5}" y2="${T(H)}" stroke="#94a3b8" stroke-width="1"/>`);
+      parts.push(`<text x="${dx + 14}" y="${T(H / 2)}" font-size="11" font-weight="bold" fill="#334155" transform="rotate(90 ${dx + 14} ${T(H / 2)})" text-anchor="middle">${fmtDim(H)}</text>`);
     }
 
     return parts.join("\n  ");
   }
 
-  const legendY = pad + H * S + 56;
-  const legendItems = [
-    `<g><line x1="0" y1="0" x2="26" y2="0" stroke="#e6007e" stroke-width="2.2"/><text x="32" y="4" font-size="10" fill="#334155">Die line (cut)</text></g>`,
-    `<g transform="translate(140,0)"><line x1="0" y1="0" x2="26" y2="0" stroke="#00a0c0" stroke-width="1.4" stroke-dasharray="8 5"/><text x="32" y="4" font-size="10" fill="#334155">Bleed — extend art 0.125" past die line</text></g>`,
-    `<g transform="translate(0,22)"><rect x="0" y="-7" width="26" height="14" fill="url(#sealhatch)" stroke="#f59e0b" stroke-width="0.8"/><text x="32" y="4" font-size="10" fill="#334155">Seal zone — no text</text></g>`,
-    `<g transform="translate(140,22)"><line x1="0" y1="0" x2="26" y2="0" stroke="#0080ff" stroke-width="1.6" stroke-dasharray="10 6"/><text x="32" y="4" font-size="10" fill="#334155">Gusset fold — no text in the gusset fold</text></g>`,
-    `<g transform="translate(0,44)"><rect x="0" y="-7" width="26" height="14" fill="rgba(100,116,139,0.08)" stroke="#64748b" stroke-width="1" stroke-dasharray="4 4"/><text x="32" y="4" font-size="10" fill="#334155">Safe Zone — all text, logos &amp; barcodes</text></g>`,
-    `<g transform="translate(140,44)"><circle cx="13" cy="0" r="6" fill="none" stroke="#16a34a" stroke-width="1.4"/><text x="32" y="4" font-size="10" fill="#334155">Features (zipper, notch, hang hole, valve)</text></g>`,
-  ].join("\n  ");
+  // Legend (single clean column, numbered)
+  const swatchFor = (row: { swatch: string }) => {
+    switch (row.swatch) {
+      case "die": return `<line x1="0" y1="0" x2="24" y2="0" stroke="#e6007e" stroke-width="2.2"/>`;
+      case "bleed": return `<line x1="0" y1="0" x2="24" y2="0" stroke="#00a0c0" stroke-width="1.4" stroke-dasharray="7 4"/>`;
+      case "seal": return `<rect x="0" y="-6" width="24" height="12" fill="url(#sealhatch)" stroke="#f59e0b" stroke-width="0.7"/>`;
+      case "zip": return `<rect x="0" y="-6" width="24" height="12" fill="rgba(124,58,237,0.12)" stroke="#7c3aed" stroke-width="1.2"/>`;
+      case "fold": return `<line x1="0" y1="0" x2="24" y2="0" stroke="#0080ff" stroke-width="1.5" stroke-dasharray="8 5"/>`;
+      case "safe": return `<rect x="0" y="-6" width="24" height="12" fill="rgba(100,116,139,0.06)" stroke="#64748b" stroke-width="1" stroke-dasharray="3 3"/>`;
+      default: return `<circle cx="12" cy="0" r="5.5" fill="none" stroke="#16a34a" stroke-width="1.4"/>`;
+    }
+  };
+  const legendY = titleH + pad + H * S + pad - 8;
+  const legendSvg = legendRows
+    .map(
+      (row, i) =>
+        `<g transform="translate(0, ${i * 19})">` +
+        `<circle cx="8" cy="0" r="8" fill="white" stroke="#334155" stroke-width="1.1"/>` +
+        `<text x="8" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#334155">${row.n}</text>` +
+        `<g transform="translate(26, 0)">${swatchFor(row)}</g>` +
+        `<text x="60" y="3.5" font-size="10.5" fill="#334155">${row.text}</text></g>`
+    )
+    .join("\n  ");
 
-  const title = `${format === "standup" ? "Stand-Up Pouch" : "Flat 3-Side-Seal Pouch"} ${fmtDim(W)} × ${fmtDim(H)}${format === "standup" ? ` + ${fmtDim(G)} gusset` : ""} · ${SEAL_WIDTHS.find((x) => x.v === sealW)?.label ?? ""} · features: ${featureList}`;
+  const specLine = `${format === "standup" ? "Stand-Up Pouch" : "Flat 3-Side-Seal Pouch"} · ${fmtDim(W)} × ${fmtDim(H)}${format === "standup" ? ` + ${fmtDim(G)} gusset` : ""} · ${SEAL_WIDTHS.find((x) => x.v === sealW)?.label ?? ""}`;
 
   const svg = valid
     ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" font-family="Helvetica, Arial, sans-serif">
   <defs>
     <pattern id="sealhatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <rect width="7" height="7" fill="rgba(245,158,11,0.10)"/>
-      <line x1="0" y1="0" x2="0" y2="7" stroke="rgba(245,158,11,0.55)" stroke-width="1.4"/>
+      <rect width="7" height="7" fill="rgba(245,158,11,0.09)"/>
+      <line x1="0" y1="0" x2="0" y2="7" stroke="rgba(245,158,11,0.5)" stroke-width="1.3"/>
     </pattern>
   </defs>
   <rect width="${svgW}" height="${svgH}" fill="white"/>
-  <text x="${pad - bleed * S}" y="26" font-size="13" font-weight="bold" fill="#0f172a">MICROFLEX PLANNING TEMPLATE — ${title}</text>
-  <text x="${pad - bleed * S}" y="42" font-size="10" fill="#64748b">Planning reference only — request the production die line from your Microflex specialist before building final artwork. microflexfilm.com/artwork-guidelines</text>
-  ${panelSvg(pad, "FRONT PANEL")}
-  ${backPanel ? panelSvg(pad + panelW + panelGap, "BACK PANEL") : ""}
+  <text x="${svgW / 2}" y="24" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">MICROFLEX PLANNING TEMPLATE</text>
+  <text x="${svgW / 2}" y="41" text-anchor="middle" font-size="10.5" fill="#475569">${specLine}</text>
+  ${panelSvg(pad, "FRONT PANEL", true)}
+  ${backPanel ? panelSvg(pad + panelW + panelGap + 40, "BACK PANEL", false) : ""}
   <g transform="translate(${pad - bleed * S}, ${legendY})">
-  ${legendItems}
+  ${legendSvg}
   </g>
+  <text x="${svgW / 2}" y="${svgH - 8}" text-anchor="middle" font-size="9" fill="#94a3b8">Planning reference only — request the production die line before final artwork · microflexfilm.com/artwork-guidelines</text>
 </svg>`
     : "";
 
@@ -597,11 +627,7 @@ export function DieLineGenerator() {
     URL.revokeObjectURL(url);
   }
 
-  const toggle = (
-    label: string,
-    value: boolean,
-    set: (v: boolean) => void
-  ) => (
+  const toggle = (label: string, value: boolean, set: (v: boolean) => void) => (
     <button
       key={label}
       type="button"
@@ -629,7 +655,6 @@ export function DieLineGenerator() {
 
   return (
     <div className="grid gap-5">
-      {/* Format + units */}
       <div className="flex flex-wrap items-center gap-2">
         {(
           [
@@ -669,7 +694,6 @@ export function DieLineGenerator() {
         ))}
       </div>
 
-      {/* Dimensions */}
       <div className={`grid gap-5 ${format === "standup" ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
         <Field label={`Pouch width (${unit})`}>
           <input style={inputStyle} type="number" min="0" step={unit === "mm" ? 5 : 0.25} value={w} onChange={(e) => setW(e.target.value)} />
@@ -691,7 +715,6 @@ export function DieLineGenerator() {
         </Field>
       </div>
 
-      {/* Feature toggles */}
       <div>
         <div className="kicker mb-2 text-[10px]">Pouch features</div>
         <div className="flex flex-wrap gap-2">
@@ -724,11 +747,10 @@ export function DieLineGenerator() {
         <a href="/#quote-form" className="btn btn-secondary">Request Production Die Line</a>
       </div>
       <Disclaimer>
-        Planning template with seal zones, gusset fold, zipper track, and Safe Zone called out
-        at correct proportions — so artwork accounts for every no-text area before design
-        begins. Production die lines add machine-specific allowances and exact feature
-        placement; request the production die line from your specialist before building final
-        artwork.
+        Numbered callouts keep the drawing clean — every zone is explained in the legend
+        below it. Seal zones and the gusset fold are no-text areas; the Safe Zone holds all
+        text, logos, and barcodes. Production die lines add machine-specific allowances and
+        exact feature placement — request one from your specialist before final artwork.
       </Disclaimer>
     </div>
   );
