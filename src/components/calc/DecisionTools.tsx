@@ -542,7 +542,13 @@ export function DieLineGenerator() {
   const isPanel = T.base === "panel";
 
   const bodyTop = T.header ? headerH : 0;
-  const zipTop = bodyTop + sealW + zipGap + (tamper ? 0.18 : 0);
+  // Production rule (Microflex): zipper centerline sits 1.5" from the top edge,
+  // creating a functional sealed top. Top seal runs 0.5" — or 0.75" when a hang
+  // hole needs room — leaving working space so the tear notch actually opens
+  // the bag above the zipper.
+  const ZIP_CL_FROM_TOP = 1.5;
+  const topSealW = zipOn ? (hangOn ? 0.75 : 0.5) : sealW;
+  const zipTop = zipOn ? bodyTop + ZIP_CL_FROM_TOP - zipH / 2 : bodyTop + sealW + zipGap + (tamper ? 0.18 : 0);
   const zipBottom = zipTop + zipH;
   const spoutClear = spoutOn ? 0.45 : 0;
   const scoreClear = laserScore ? 0.22 : 0;
@@ -580,7 +586,8 @@ export function DieLineGenerator() {
     if (T.fin) add("fin", T.fin === "lap" ? "Lap seal on reverse — back overlap zone, plan wraparound art" : "Back fin seal on reverse — plan wraparound art");
     if (T.header) add("fold", "Header zone with perforation — peg display area");
     if (tamper) add("tamper", "Tamper-evident seal band");
-    if (zipOn) add("zip", zipperType === "cr" ? "Child-resistant zipper — keep this band clear" : "Zipper track — keep this band clear");
+    if (zipOn) add("zip", `${zipperType === "cr" ? "Child-resistant zipper" : "Zipper track"} — centerline ${fmtDim(ZIP_CL_FROM_TOP)} from top, keep clear`);
+    if (zipOn) add("seal2", `Functional sealed top — ${fmtDim(topSealW)} top seal${hangOn ? " (hang hole)" : ""}, tear notch opens between seal and zipper`);
     if (tearNotch && isPanel) add("feat", "Tear notches");
     if (laserScore) add("score", "Laser score — easy-open line, keep clear above Safe Zone");
     if (T.bottomGusset) add("fold", T.id === "flat-bottom" ? "Flat-bottom fold zone — no text in the gusset fold" : `Gusset fold (${fmtDim(G)} gusset) — no text in the gusset fold`);
@@ -670,7 +677,7 @@ export function DieLineGenerator() {
       }
 
       const topSealY = bodyTop;
-      if (T.sealTop && !spoutOn) seal(L(0), Tp(topSealY), W * S, sealW * S);
+      if (T.sealTop && !spoutOn) seal(L(0), Tp(topSealY), W * S, topSealW * S);
       if (spoutOn) {
         const sw2 = (W - 1.1) / 2;
         seal(L(0), Tp(topSealY), sw2 * S, sealW * S);
@@ -725,15 +732,15 @@ export function DieLineGenerator() {
         parts.push(`<line x1="${L(sideInset)}" y1="${Tp(scoreY)}" x2="${L(W - sideInset)}" y2="${Tp(scoreY)}" stroke="#dc2626" stroke-width="1.2" stroke-dasharray="2 3"/>`);
       }
 
-      // tear notches
-      const notchY = zipOn ? zipTop - 0.06 : bodyTop + sealW + 0.2;
+      // tear notches — centered in the working zone between top seal and zipper
+      const notchY = zipOn ? (bodyTop + topSealW + zipTop) / 2 : bodyTop + sealW + 0.2;
       if (tearNotch) {
         parts.push(`<path d="M ${L(0)} ${Tp(notchY) - 6} l 10 6 l -10 6 Z" fill="#16a34a"/>`);
         parts.push(`<path d="M ${L(W)} ${Tp(notchY) - 6} l -10 6 l 10 6 Z" fill="#16a34a"/>`);
       }
 
       // hang hole / euro slot
-      const hangCy = T.header ? headerH / 2 : bodyTop + sealW / 2;
+      const hangCy = T.header ? headerH / 2 : bodyTop + topSealW / 2;
       if (hangOn) {
         if (hangType === "euro") {
           parts.push(`<rect x="${L(W / 2 - 0.45)}" y="${Tp(hangCy) - 0.09 * S}" width="${0.9 * S}" height="${0.18 * S}" rx="${0.09 * S}" fill="none" stroke="#16a34a" stroke-width="1.5"/>`);
@@ -781,7 +788,7 @@ export function DieLineGenerator() {
       mark(L(W * 0.5) + (hangOn && !T.header ? 30 : 0), Tp(bodyTop), nFor("die"));
       mark(L(-bleed), Tp(H * 0.12), nFor("bleed"));
       if (T.sealSides) mark(L(W - sealW / 2), Tp(H * 0.42), nFor("seal"));
-      else if (T.sealTop && !spoutOn) mark(L(W * 0.82), Tp(bodyTop + sealW / 2), nFor("seal"));
+      else if (T.sealTop && !spoutOn) mark(L(W * 0.82), Tp(bodyTop + topSealW / 2), nFor("seal"));
       if (T.fin) mark(L(W / 2), Tp(H * 0.62), nFor("fin"));
       if (T.header) mark(L(W * 0.82), Tp(headerH / 2), nFor("Header") || nForText("Header"));
       if (tamper) mark(L(W * 0.18), Tp(bodyTop + sealW + 0.09), nForText("Tamper"));
@@ -816,6 +823,7 @@ export function DieLineGenerator() {
       case "die": return `<line x1="0" y1="0" x2="24" y2="0" stroke="#e6007e" stroke-width="2.2"/>`;
       case "bleed": return `<line x1="0" y1="0" x2="24" y2="0" stroke="#00a0c0" stroke-width="1.4" stroke-dasharray="7 4"/>`;
       case "seal": return `<rect x="0" y="-6" width="24" height="12" fill="url(#sealhatch)" stroke="#f59e0b" stroke-width="0.7"/>`;
+      case "seal2": return `<rect x="0" y="-6" width="24" height="12" fill="url(#sealhatch)" stroke="#f59e0b" stroke-width="0.7"/>`;
       case "zip": return `<rect x="0" y="-6" width="24" height="12" fill="rgba(124,58,237,0.12)" stroke="#7c3aed" stroke-width="1.2"/>`;
       case "fin": return `<line x1="0" y1="0" x2="24" y2="0" stroke="#9333ea" stroke-width="1.4" stroke-dasharray="5 4"/>`;
       case "fold": return `<line x1="0" y1="0" x2="24" y2="0" stroke="#0080ff" stroke-width="1.5" stroke-dasharray="8 5"/>`;
@@ -874,7 +882,7 @@ export function DieLineGenerator() {
       )
       .join("\n  ");
 
-  const specLine = `${T.name.split("·")[1]?.trim() ?? T.name} · ${fmtDim(W)} × ${fmtDim(H)}${needsG ? ` + ${fmtDim(G)} gusset` : ""}${isPanel || T.base === "lid" ? ` · ${SEAL_WIDTHS.find((x) => x.v === sealW)?.label ?? ""}` : ""} · bleed ${fmtDim(bleed)} · safe ${fmtDim(safety)}`;
+  const specLine = `${T.name.split("·")[1]?.trim() ?? T.name} · ${fmtDim(W)} × ${fmtDim(H)}${needsG ? ` + ${fmtDim(G)} gusset` : ""}${isPanel || T.base === "lid" ? ` · ${SEAL_WIDTHS.find((x) => x.v === sealW)?.label ?? ""}` : ""}${zipOn ? ` · zipper ℄ ${fmtDim(ZIP_CL_FROM_TOP)} from top · top seal ${fmtDim(topSealW)}` : ""} · bleed ${fmtDim(bleed)} · safe ${fmtDim(safety)}`;
 
 
   /* ===== Final Approval Sheet (production-style download) ===== */
@@ -918,13 +926,13 @@ export function DieLineGenerator() {
       // cut
       p.push(`<rect x="${L(0)}" y="${Ty(0)}" width="${W * AS}" height="${H * AS}" fill="white" stroke="#111111" stroke-width="2.6"/>`);
       // seals — top, sides; corners darker
-      p.push(`<rect x="${L(0)}" y="${Ty(0)}" width="${W * AS}" height="${sealW * AS}" fill="${sealFill}"/>`);
-      const sideH = (T.bottomGusset ? H - gussetH : H) - sealW;
+      p.push(`<rect x="${L(0)}" y="${Ty(0)}" width="${W * AS}" height="${topSealW * AS}" fill="${sealFill}"/>`);
+      const sideH = (T.bottomGusset ? H - gussetH : H) - topSealW;
       if (T.sealSides) {
-        p.push(`<rect x="${L(0)}" y="${Ty(sealW)}" width="${sealW * AS}" height="${sideH * AS}" fill="${sealFill}"/>`);
-        p.push(`<rect x="${L(W - sealW)}" y="${Ty(sealW)}" width="${sealW * AS}" height="${sideH * AS}" fill="${sealFill}"/>`);
-        p.push(`<rect x="${L(0)}" y="${Ty(0)}" width="${sealW * AS}" height="${sealW * AS}" fill="${sealFillDark}"/>`);
-        p.push(`<rect x="${L(W - sealW)}" y="${Ty(0)}" width="${sealW * AS}" height="${sealW * AS}" fill="${sealFillDark}"/>`);
+        p.push(`<rect x="${L(0)}" y="${Ty(topSealW)}" width="${sealW * AS}" height="${sideH * AS}" fill="${sealFill}"/>`);
+        p.push(`<rect x="${L(W - sealW)}" y="${Ty(topSealW)}" width="${sealW * AS}" height="${sideH * AS}" fill="${sealFill}"/>`);
+        p.push(`<rect x="${L(0)}" y="${Ty(0)}" width="${sealW * AS}" height="${topSealW * AS}" fill="${sealFillDark}"/>`);
+        p.push(`<rect x="${L(W - sealW)}" y="${Ty(0)}" width="${sealW * AS}" height="${topSealW * AS}" fill="${sealFillDark}"/>`);
       }
       if (T.sealBottom && !T.bottomGusset) p.push(`<rect x="${L(0)}" y="${Ty(H - sealW)}" width="${W * AS}" height="${sealW * AS}" fill="${sealFill}"/>`);
       // gusset zone
@@ -935,16 +943,16 @@ export function DieLineGenerator() {
       }
       // hang slot (optional)
       if (hangOn) {
-        p.push(`<rect x="${L(W / 2 - 0.45)}" y="${Ty(sealW * 0.18)}" width="${0.9 * AS}" height="${0.16 * AS}" rx="${0.08 * AS}" fill="none" stroke="#6b7280" stroke-width="1.4"/>`);
-        if (!narrow) p.push(`<text x="${L(W / 2)}" y="${Ty(sealW * 0.18) - 5}" text-anchor="middle" font-size="10" fill="#6b7280" letter-spacing="1">OPTIONAL HANG SLOT</text>`);
+        p.push(`<rect x="${L(W / 2 - 0.45)}" y="${Ty(topSealW * 0.18)}" width="${0.9 * AS}" height="${0.16 * AS}" rx="${0.08 * AS}" fill="none" stroke="#6b7280" stroke-width="1.4"/>`);
+        if (!narrow) p.push(`<text x="${L(W / 2)}" y="${Ty(topSealW * 0.18) - 5}" text-anchor="middle" font-size="10" fill="#6b7280" letter-spacing="1">OPTIONAL HANG SLOT</text>`);
       }
       // top seal callout — pill inside when it fits, leader label above when narrow
       if (!narrow) {
-        p.push(`<rect x="${L(W / 2) - 64}" y="${Ty(sealW / 2) - 1}" width="128" height="20" rx="9" fill="white" stroke="#111" stroke-width="1.2"/>`);
-        p.push(`<text x="${L(W / 2)}" y="${Ty(sealW / 2) + 13}" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#111">TOP SEAL ${fmtA(sealW)}</text>`);
+        p.push(`<rect x="${L(W / 2) - 64}" y="${Ty(topSealW / 2) - 1}" width="128" height="20" rx="9" fill="white" stroke="#111" stroke-width="1.2"/>`);
+        p.push(`<text x="${L(W / 2)}" y="${Ty(topSealW / 2) + 13}" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#111">TOP SEAL ${fmtA(topSealW)}</text>`);
       } else {
-        p.push(`<text x="${L(W / 2)}" y="${Ty(-bleed) - 26}" text-anchor="middle" font-size="10.5" font-weight="bold" fill="#111">TOP SEAL ${fmtA(sealW)}</text>`);
-        p.push(`<line x1="${L(W / 2)}" y1="${Ty(-bleed) - 20}" x2="${L(W / 2)}" y2="${Ty(sealW / 2)}" stroke="#111" stroke-width="1"/>`);
+        p.push(`<text x="${L(W / 2)}" y="${Ty(-bleed) - 26}" text-anchor="middle" font-size="10.5" font-weight="bold" fill="#111">TOP SEAL ${fmtA(topSealW)}</text>`);
+        p.push(`<line x1="${L(W / 2)}" y1="${Ty(-bleed) - 20}" x2="${L(W / 2)}" y2="${Ty(topSealW / 2)}" stroke="#111" stroke-width="1"/>`);
       }
       // tear notches
       if (tearNotch) {
@@ -952,9 +960,17 @@ export function DieLineGenerator() {
         p.push(`<path d="M ${L(W)} ${Ty(notchPosA) - 8} l -13 8 l 13 8 Z" fill="#dc2626"/>`);
         if (!narrow) p.push(`<text x="${L(W / 2)}" y="${Ty(notchPosA) - 12}" text-anchor="middle" font-size="11" font-weight="bold" fill="#dc2626" letter-spacing="1">TEAR NOTCHES</text>`);
       }
-      // zipper
+      // zipper — centerline dimension from top edge (front panel only)
       if (zipOn) {
         p.push(`<rect x="${L(sealW + 0.1)}" y="${Ty(zipTop)}" width="${(W - (sealW + 0.1) * 2) * AS}" height="${zipH * AS}" fill="none" stroke="#f59e0b" stroke-width="2.4"/>`);
+        if (!isBack) {
+          const zcl = Ty(bodyTop + ZIP_CL_FROM_TOP);
+          const zx = L(0) - 14;
+          p.push(`<line x1="${zx}" y1="${Ty(0)}" x2="${zx}" y2="${zcl}" stroke="#f59e0b" stroke-width="1.3"/>`);
+          p.push(`<line x1="${zx - 4}" y1="${Ty(0)}" x2="${zx + 4}" y2="${Ty(0)}" stroke="#f59e0b" stroke-width="1.3"/>`);
+          p.push(`<line x1="${zx - 4}" y1="${zcl}" x2="${zx + 4}" y2="${zcl}" stroke="#f59e0b" stroke-width="1.3"/>`);
+          p.push(`<text x="${zx - 6}" y="${(Ty(0) + zcl) / 2}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#b45309" transform="rotate(-90 ${zx - 6} ${(Ty(0) + zcl) / 2})">ZIPPER ℄ ${fmtA(ZIP_CL_FROM_TOP)}</text>`);
+        }
         if (!narrow) p.push(`<text x="${L(W / 2)}" y="${Ty(zipTop + zipH / 2) + 4}" text-anchor="middle" font-size="12" font-weight="bold" fill="#f59e0b" letter-spacing="2">ZIPPER AREA${zipperType === "cr" ? " (CHILD-RESISTANT)" : ""}</text>`);
       }
       // safe zone
@@ -991,7 +1007,7 @@ export function DieLineGenerator() {
         p.push(`<text x="${L(W) + 38}" y="${Ty(H * 0.62) + 38}" font-size="11" font-weight="bold" fill="#111">REGISTRATION</text>`);
       }
     }
-    const notchPosA = zipOn ? zipTop - 0.12 : sealW + 0.22;
+    const notchPosA = zipOn ? (bodyTop + topSealW + zipTop) / 2 : sealW + 0.22;
 
     panel(FX, "FRONT PANEL", false);
     panel(BX, "BACK PANEL", true);
@@ -1216,6 +1232,20 @@ export function DieLineGenerator() {
             {toggle("Easy-peel seal", easyPeel, setEasyPeel)}
             {toggle("Tamper-evident", tamper, setTamper)}
           </div>
+          {zipOn && (
+            <p className="rounded-xl p-3 text-xs leading-relaxed text-muted" style={{ border: "1px solid rgba(0,216,242,0.18)", background: "rgba(255,255,255,0.03)" }}>
+              <span className="font-bold text-cyan">Zipper geometry (production standard):</span>{" "}
+              zipper centerline sits {fmtDim(ZIP_CL_FROM_TOP)} from the top — the top {fmtDim(ZIP_CL_FROM_TOP)} is a
+              functional sealed top. Top seal is {fmtDim(0.5)} ({fmtDim(0.75)} with a hang hole) so the tear
+              notch has working room between seal and zipper — tighter than that and the
+              notch tears without opening the bag.
+              {H > 0 && H < 2.5 && (
+                <span className="font-bold" style={{ color: "#ff9d9d" }}>
+                  {" "}This pouch is too short for a functional zipper top — increase the height.
+                </span>
+              )}
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-muted-dark">Material flags:</span>
             {toggle("Spot varnish", spotVarnish, setSpotVarnish)}
