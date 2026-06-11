@@ -425,7 +425,8 @@ type DielineType = {
   sideGusset?: boolean;
   fin?: "fin" | "lap";
   header?: boolean;
-  spout?: boolean;
+  spoutDefault?: boolean;
+  spoutOk?: boolean;
   cornerSeals?: boolean;
   zipperOk?: boolean;
   zipperDefault?: boolean;
@@ -440,10 +441,10 @@ const DIELINE_TYPES: DielineType[] = [
   { id: "four-side", name: "3 · 4-Side Seal Pouch", use: "Sachets, wipes, samples, medical packs", base: "panel", sealTop: true, sealBottom: true, sealSides: true, defaults: { w: 4, h: 5 } },
   { id: "fin-seal", name: "4 · Center Seal / Fin Seal Bag", use: "Flow-wrap snacks, bars, bakery items", base: "panel", sealTop: true, sealBottom: true, fin: "fin", defaults: { w: 5, h: 8 } },
   { id: "lap-seal", name: "5 · Lap Seal Bag", use: "Flow-wrap where the back seal overlaps", base: "panel", sealTop: true, sealBottom: true, fin: "lap", defaults: { w: 5, h: 8 } },
-  { id: "standup", name: "6 · Stand-Up Pouch / Doypack", use: "Coffee, pet food, snacks, supplements", base: "panel", sealTop: true, sealSides: true, bottomGusset: true, zipperOk: true, valveOk: true, defaults: { w: 6, h: 9, g: 3 } },
-  { id: "standup-zip", name: "7 · Stand-Up Pouch with Zipper", use: "Resealable food, powders, gummies", base: "panel", sealTop: true, sealSides: true, bottomGusset: true, zipperOk: true, zipperDefault: true, valveOk: true, defaults: { w: 6, h: 9, g: 3 } },
-  { id: "standup-spout", name: "8 · Stand-Up Pouch with Spout", use: "Liquids, sauces, baby food, cleaners", base: "panel", sealTop: true, sealSides: true, bottomGusset: true, spout: true, defaults: { w: 5, h: 8, g: 2.5 } },
-  { id: "bottom-gusset", name: "9 · Bottom Gusset Pouch", use: "Stand-up pouches with expanding base", base: "panel", sealTop: true, sealSides: true, bottomGusset: true, zipperOk: true, defaults: { w: 6, h: 9, g: 3 } },
+  { id: "standup", name: "6 · Stand-Up Pouch / Doypack", use: "Coffee, pet food, snacks, supplements", base: "panel", sealTop: true, sealSides: true, bottomGusset: true, zipperOk: true, valveOk: true, spoutOk: true, defaults: { w: 6, h: 9, g: 3 } },
+  { id: "standup-zip", name: "7 · Stand-Up Pouch with Zipper", use: "Resealable food, powders, gummies", base: "panel", sealTop: true, sealSides: true, bottomGusset: true, zipperOk: true, zipperDefault: true, valveOk: true, spoutOk: true, defaults: { w: 6, h: 9, g: 3 } },
+  { id: "standup-spout", name: "8 · Stand-Up Pouch with Spout", use: "Liquids, sauces, baby food, cleaners", base: "panel", sealTop: true, sealSides: true, bottomGusset: true, spoutOk: true, spoutDefault: true, defaults: { w: 5, h: 8, g: 2.5 } },
+  { id: "bottom-gusset", name: "9 · Bottom Gusset Pouch", use: "Stand-up pouches with expanding base", base: "panel", sealTop: true, sealSides: true, bottomGusset: true, zipperOk: true, spoutOk: true, defaults: { w: 6, h: 9, g: 3 } },
   { id: "side-gusset", name: "10 · Side Gusset Bag", use: "Coffee, dry goods, bulk powders", base: "panel", sealTop: true, sealBottom: true, sideGusset: true, valveOk: true, defaults: { w: 5, h: 11, g: 3 } },
   { id: "quad-seal", name: "11 · Quad Seal Bag", use: "Premium coffee, pet food, protein powders", base: "panel", sealTop: true, sealSides: true, cornerSeals: true, bottomGusset: true, zipperOk: true, valveOk: true, defaults: { w: 6, h: 11, g: 3.5 } },
   { id: "flat-bottom", name: "12 · Flat Bottom / Box Pouch", use: "High-end coffee, snacks, pet food", base: "panel", sealTop: true, sealSides: true, cornerSeals: true, bottomGusset: true, zipperOk: true, zipperDefault: true, valveOk: true, defaults: { w: 6, h: 10, g: 3.5 } },
@@ -457,19 +458,39 @@ const DIELINE_TYPES: DielineType[] = [
   { id: "die-cut", name: "20 · Custom Die-Cut Pouch", use: "Shaped pouches, promotional packaging", base: "panel", sealTop: true, sealSides: true, zipperOk: true, defaults: { w: 5, h: 8 }, note: "Custom shapes are engineered case by case — this rectangular planning canvas marks the zones; your specialist supplies the shaped production die line." },
 ];
 
+const UNWINDS = ["Printed side out — top leads", "Printed side out — bottom leads", "Printed side in — top leads", "Printed side in — bottom leads"];
+
 export function DieLineGenerator() {
+  /* ===== Level 1 — core format ===== */
   const [typeId, setTypeId] = useState("standup-zip");
   const T = DIELINE_TYPES.find((t) => t.id === typeId)!;
 
+  /* ===== Level 2 — structural variation ===== */
+  const [zipperType, setZipperType] = useState<"none" | "standard" | "cr">("standard");
+  const [tearNotch, setTearNotch] = useState(true);
+  const [hangType, setHangType] = useState<"none" | "round" | "euro">("none");
+  const [roundCorners, setRoundCorners] = useState(false);
+  const [valve, setValve] = useState(false);
+  const [spout, setSpout] = useState(false);
+  const [windowType, setWindowType] = useState<"none" | "window" | "clear-panel">("none");
+  const [laserScore, setLaserScore] = useState(false);
+  const [easyPeel, setEasyPeel] = useState(false);
+  const [tamper, setTamper] = useState(false);
+  const [spotVarnish, setSpotVarnish] = useState(false);
+  const [foil, setFoil] = useState(false);
+
+  /* ===== Level 3 — production-specific ===== */
   const [unit, setUnit] = useState<"in" | "mm">("in");
   const [w, setW] = useState("6");
   const [h, setH] = useState("9");
   const [g, setG] = useState("3");
   const [sealW, setSealW] = useState(0.375);
-  const [zipper, setZipper] = useState(true);
-  const [tearNotch, setTearNotch] = useState(true);
-  const [hangHole, setHangHole] = useState(false);
-  const [valve, setValve] = useState(false);
+  const [bleedIn, setBleedIn] = useState("0.125");
+  const [safetyIn, setSafetyIn] = useState("0.125");
+  const [fillDir, setFillDir] = useState<"top" | "bottom">("top");
+  const [unwind, setUnwind] = useState(UNWINDS[0]);
+  const [eyeMarkPos, setEyeMarkPos] = useState<"left" | "right">("left");
+  const [artOrient, setArtOrient] = useState<"standard" | "back-inverted">("standard");
 
   function pickType(id: string) {
     const t = DIELINE_TYPES.find((x) => x.id === id)!;
@@ -479,9 +500,14 @@ export function DieLineGenerator() {
     setW(r(t.defaults.w));
     setH(r(t.defaults.h));
     if (t.defaults.g) setG(r(t.defaults.g));
-    setZipper(Boolean(t.zipperDefault));
+    setZipperType(t.zipperDefault ? "standard" : "none");
+    setSpout(Boolean(t.spoutDefault));
     setValve(false);
-    setHangHole(Boolean(t.header));
+    setHangType(t.header ? "round" : "none");
+    setWindowType("none");
+    setLaserScore(false);
+    setEasyPeel(false);
+    setTamper(false);
   }
 
   const toIn = (v: string) => {
@@ -492,31 +518,33 @@ export function DieLineGenerator() {
   const H = toIn(h);
   const needsG = T.bottomGusset || T.sideGusset;
   const G = needsG ? toIn(g) : 0;
-  const minDim = T.base === "panel" && T.id === "stick-pack" ? 0.5 : 1.5;
+  const bleed = Math.min(Math.max(parseFloat(bleedIn) || 0.125, 0.0625), 0.5);
+  const safety = Math.min(Math.max(parseFloat(safetyIn) || 0.125, 0.0625), 0.5);
+  const minDim = T.id === "stick-pack" ? 0.5 : 1.5;
   const valid = W >= minDim && H >= minDim && (!needsG || (G >= 0.5 && G < (T.sideGusset ? W * 2 : H)));
 
   const fmtDim = (inches: number) =>
     unit === "mm" ? `${Math.round(inches * 25.4)} mm` : `${inches}"`;
 
   const S = T.id === "stick-pack" ? 60 : 40;
-  const bleed = 0.125;
-  const safety = 0.125;
   const pad = 64;
   const zipH = 0.35;
   const zipGap = 0.15;
   const headerH = 1.0;
-  const titleH = 54;
+  const titleH = 58;
 
-  const zipOn = T.zipperOk && zipper;
-  const valveOn = T.valveOk && valve;
-  const hangOn = T.header || hangHole;
+  const zipOn = Boolean(T.zipperOk) && zipperType !== "none";
+  const valveOn = Boolean(T.valveOk) && valve;
+  const spoutOn = Boolean(T.spoutOk) && (spout || Boolean(T.spoutDefault));
+  const hangOn = T.header || hangType !== "none";
+  const isPanel = T.base === "panel";
 
-  // Vertical layout (inches from die-line top)
   const bodyTop = T.header ? headerH : 0;
-  const zipTop = bodyTop + sealW + zipGap;
+  const zipTop = bodyTop + sealW + zipGap + (tamper ? 0.18 : 0);
   const zipBottom = zipTop + zipH;
-  const spoutClear = T.spout ? 0.45 : 0;
-  const safeTop = (zipOn ? zipBottom : bodyTop + (T.sealTop ? sealW : 0) + spoutClear) + safety;
+  const spoutClear = spoutOn ? 0.45 : 0;
+  const scoreClear = laserScore ? 0.22 : 0;
+  const safeTop = (zipOn ? zipBottom : bodyTop + (T.sealTop ? sealW : 0) + spoutClear + (tamper && !zipOn ? 0.18 : 0)) + scoreClear + safety;
   const gussetH = T.bottomGusset ? G / 2 : 0;
   const safeBottom = H - (T.bottomGusset ? gussetH : T.sealBottom ? sealW : 0) - safety;
   const sideInset = T.sideGusset ? G / 2 : T.sealSides ? sealW : 0;
@@ -535,34 +563,47 @@ export function DieLineGenerator() {
   } else if (T.base === "web") {
     add("die", "Print repeat — one package per repeat");
     add("bleed", "Repeat boundaries — art tiles continuously");
-    add("seal", "Eye mark — registration sensor target, keep area clear");
+    add("seal", `Eye mark (${eyeMarkPos} edge) — registration target, keep area clear`);
     add("safe", "Safe Zone — keep critical art inside the repeat");
   } else if (T.base === "lid") {
     add("die", "Lid die-cut edge");
-    add("bleed", 'Bleed — extend art 0.125" past the cut');
-    add("seal", "Flange seal ring — no text in the seal zone");
+    add("bleed", `Bleed — extend art ${fmtDim(bleed)} past the cut`);
+    add("seal", easyPeel ? "Easy-peel flange seal ring — no text in the seal zone" : "Flange seal ring — no text in the seal zone");
     add("safe", "Safe Zone — keep all text, logos & barcodes inside");
   } else {
-    add("die", "Die line (cut edge)");
-    add("bleed", 'Bleed — extend background art 0.125" past the die line');
+    add("die", roundCorners ? "Die line (cut edge, rounded corners)" : "Die line (cut edge)");
+    add("bleed", `Bleed — extend background art ${fmtDim(bleed)} past the die line`);
     if (T.sealTop || T.sealBottom || T.sealSides || T.cornerSeals)
-      add("seal", T.cornerSeals ? "Seal zones incl. corner seals — no text in the seal zone" : "Seal zone — no text in the seal zone");
+      add("seal", `${easyPeel ? "Easy-peel top seal · " : ""}${T.cornerSeals ? "Seal zones incl. corner seals" : "Seal zone"} — no text in the seal zone`);
     if (T.fin) add("fin", T.fin === "lap" ? "Lap seal on reverse — back overlap zone, plan wraparound art" : "Back fin seal on reverse — plan wraparound art");
     if (T.header) add("fold", "Header zone with perforation — peg display area");
-    if (zipOn) add("zip", "Zipper track — keep this band clear");
-    if (tearNotch && T.base === "panel") add("feat", "Tear notches");
-    if (T.bottomGusset) add("fold", T.id === "flat-bottom" ? "Flat-bottom fold zone — no text in the gusset fold" : "Gusset fold — no text in the gusset fold");
-    if (T.sideGusset) add("fold", "Side gusset folds — no text across the gusset folds");
-    if (T.spout) add("feat", "Spout & cap location — keep area clear");
+    if (tamper) add("tamper", "Tamper-evident seal band");
+    if (zipOn) add("zip", zipperType === "cr" ? "Child-resistant zipper — keep this band clear" : "Zipper track — keep this band clear");
+    if (tearNotch && isPanel) add("feat", "Tear notches");
+    if (laserScore) add("score", "Laser score — easy-open line, keep clear above Safe Zone");
+    if (T.bottomGusset) add("fold", T.id === "flat-bottom" ? "Flat-bottom fold zone — no text in the gusset fold" : `Gusset fold (${fmtDim(G)} gusset) — no text in the gusset fold`);
+    if (T.sideGusset) add("fold", `Side gusset folds (${fmtDim(G)} total) — no text across the folds`);
+    if (spoutOn) add("feat", "Spout & cap location — keep area clear");
+    if (windowType === "window") add("win", `Window — keep ${fmtDim(safety)} clearance inside the window edge`);
+    if (windowType === "clear-panel") add("win", "Clear panel — unprinted band, plan art around it");
     add("safe", "Safe Zone — keep all text, logos & barcodes inside");
-    if (hangOn && !T.header) add("feat", "Hang hole");
+    if (hangOn && !T.header) add("feat", hangType === "euro" ? "Euro slot hang hole" : "Hang hole");
     if (valveOn) add("feat", "Degassing valve location");
+    add("fill", `Fill direction — ${fillDir === "top" ? "top fill" : "bottom fill"}`);
   }
   const nFor = (sw: string) => legendRows.find((r) => r.swatch === sw)?.n ?? 0;
-  const nForText = (txt: string) => legendRows.find((r) => r.text.startsWith(txt))?.n ?? 0;
+  const nForText = (txt: string) => legendRows.find((r) => r.text.includes(txt))?.n ?? 0;
 
-  const legendH = legendRows.length * 19 + 26;
-  const svgW = Math.max(560, pad * 2 + W * S + 56);
+  /* finish + production spec lines (don't draw, but ship with the template) */
+  const finishNotes = [
+    spotVarnish && "Spot varnish — supply varnish shapes as a separate named art layer",
+    foil && "Foil / metalized layer — affects window clarity; confirm with materials team",
+    artOrient === "back-inverted" && "Back panel artwork inverted (bottom-fill orientation)",
+    T.base === "web" && `Unwind: ${unwind}`,
+  ].filter(Boolean) as string[];
+
+  const legendH = legendRows.length * 19 + finishNotes.length * 16 + 34;
+  const svgW = Math.max(580, pad * 2 + W * S + 56);
   const svgH = titleH + pad + H * S + pad + legendH;
 
   function buildSvgBody(): string {
@@ -595,12 +636,13 @@ export function DieLineGenerator() {
       parts.push(`<rect x="${L(0)}" y="${Tp(0)}" width="${W * S}" height="${H * S}" fill="#ffffff" stroke="#e6007e" stroke-width="2"/>`);
       parts.push(`<line x1="${L(0)}" y1="${Tp(0)}" x2="${L(W)}" y2="${Tp(0)}" stroke="#00a0c0" stroke-width="1.4" stroke-dasharray="8 5"/>`);
       parts.push(`<line x1="${L(0)}" y1="${Tp(H)}" x2="${L(W)}" y2="${Tp(H)}" stroke="#00a0c0" stroke-width="1.4" stroke-dasharray="8 5"/>`);
-      parts.push(`<rect x="${L(0.15)}" y="${Tp(H - 0.45)}" width="${0.5 * S}" height="${0.3 * S}" fill="#1f2937"/>`);
+      const emx = eyeMarkPos === "left" ? 0.15 : W - 0.65;
+      parts.push(`<rect x="${L(emx)}" y="${Tp(H - 0.45)}" width="${0.5 * S}" height="${0.3 * S}" fill="#1f2937"/>`);
       parts.push(`<rect x="${L(0.5)}" y="${Tp(0.5)}" width="${(W - 1) * S}" height="${(H - 1.2) * S}" fill="rgba(100,116,139,0.045)" stroke="#64748b" stroke-width="1.1" stroke-dasharray="4 4"/>`);
       parts.push(`<text x="${L(W / 2)}" y="${Tp(H / 2) + 4}" text-anchor="middle" font-size="12" font-weight="bold" fill="#94a3b8" letter-spacing="2">SAFE ZONE</text>`);
       mark(L(W * 0.5), Tp(0), nFor("bleed"));
       mark(L(W - 0.3), Tp(H * 0.5), nFor("die"));
-      mark(L(0.4) + 22, Tp(H - 0.3), nFor("seal"));
+      mark(L(emx) + (eyeMarkPos === "left" ? 42 : -22), Tp(H - 0.3), nFor("seal"));
       mark(L(0.5) + 16, Tp(0.5) + 16, nFor("safe"));
     } else if (T.base === "lid") {
       const r = 14;
@@ -616,25 +658,23 @@ export function DieLineGenerator() {
       mark(L(inset) + 16, Tp(inset) + 16, nFor("safe"));
     } else {
       /* ---------- panel renderer ---------- */
-      parts.push(`<rect x="${L(-bleed)}" y="${Tp(-bleed)}" width="${(W + bleed * 2) * S}" height="${(H + bleed * 2) * S}" rx="10" fill="none" stroke="#00a0c0" stroke-width="1.2" stroke-dasharray="8 5"/>`);
-      parts.push(`<rect x="${L(0)}" y="${Tp(0)}" width="${W * S}" height="${H * S}" rx="6" fill="#ffffff" stroke="#e6007e" stroke-width="2.2"/>`);
+      const rx = roundCorners ? 0.3 * S : 6;
+      parts.push(`<rect x="${L(-bleed)}" y="${Tp(-bleed)}" width="${(W + bleed * 2) * S}" height="${(H + bleed * 2) * S}" rx="${rx + 5}" fill="none" stroke="#00a0c0" stroke-width="1.2" stroke-dasharray="8 5"/>`);
+      parts.push(`<rect x="${L(0)}" y="${Tp(0)}" width="${W * S}" height="${H * S}" rx="${rx}" fill="#ffffff" stroke="#e6007e" stroke-width="2.2"/>`);
 
-      // header zone
       if (T.header) {
         parts.push(`<rect x="${L(0)}" y="${Tp(0)}" width="${W * S}" height="${headerH * S}" fill="rgba(0,128,255,0.07)"/>`);
         parts.push(`<line x1="${L(0)}" y1="${Tp(headerH)}" x2="${L(W)}" y2="${Tp(headerH)}" stroke="#0080ff" stroke-width="1.4" stroke-dasharray="3 4"/>`);
-        parts.push(`<circle cx="${L(W / 2)}" cy="${Tp(headerH / 2)}" r="${0.14 * S}" fill="none" stroke="#16a34a" stroke-width="1.5"/>`);
       }
 
-      // seals
       const topSealY = bodyTop;
-      if (T.sealTop && !T.spout) seal(L(0), Tp(topSealY), W * S, sealW * S);
-      if (T.spout) {
+      if (T.sealTop && !spoutOn) seal(L(0), Tp(topSealY), W * S, sealW * S);
+      if (spoutOn) {
         const sw2 = (W - 1.1) / 2;
         seal(L(0), Tp(topSealY), sw2 * S, sealW * S);
         seal(L(W - sw2), Tp(topSealY), sw2 * S, sealW * S);
-        parts.push(`<rect x="${L(W / 2 - 0.25)}" y="${Tp(-0.35)}" width="${0.5 * S}" height="${0.35 * S}" fill="none" stroke="#16a34a" stroke-width="1.5"/>`);
-        parts.push(`<rect x="${L(W / 2 - 0.4)}" y="${Tp(0)}" width="${0.8 * S}" height="${0.45 * S}" fill="rgba(22,163,74,0.08)" stroke="#16a34a" stroke-width="1.3" stroke-dasharray="4 3"/>`);
+        parts.push(`<rect x="${L(W / 2 - 0.25)}" y="${Tp(topSealY - 0.35)}" width="${0.5 * S}" height="${0.35 * S}" fill="none" stroke="#16a34a" stroke-width="1.5"/>`);
+        parts.push(`<rect x="${L(W / 2 - 0.4)}" y="${Tp(topSealY)}" width="${0.8 * S}" height="${0.45 * S}" fill="rgba(22,163,74,0.08)" stroke="#16a34a" stroke-width="1.3" stroke-dasharray="4 3"/>`);
       }
       const bottomEdge = T.bottomGusset ? H - gussetH : H;
       if (T.sealBottom && !T.bottomGusset) seal(L(0), Tp(H - sealW), W * S, sealW * S);
@@ -648,8 +688,6 @@ export function DieLineGenerator() {
         parts.push(`<line x1="${L(sealW)}" y1="${Tp(bodyTop)}" x2="${L(sealW)}" y2="${Tp(bottomEdge)}" stroke="#f59e0b" stroke-width="1.6"/>`);
         parts.push(`<line x1="${L(W - sealW)}" y1="${Tp(bodyTop)}" x2="${L(W - sealW)}" y2="${Tp(bottomEdge)}" stroke="#f59e0b" stroke-width="1.6"/>`);
       }
-
-      // side gussets
       if (T.sideGusset) {
         const gw = G / 2;
         parts.push(`<rect x="${L(0)}" y="${Tp(bodyTop)}" width="${gw * S}" height="${(bottomEdge - bodyTop) * S}" fill="rgba(0,128,255,0.07)"/>`);
@@ -657,22 +695,32 @@ export function DieLineGenerator() {
         parts.push(`<line x1="${L(gw)}" y1="${Tp(bodyTop)}" x2="${L(gw)}" y2="${Tp(bottomEdge)}" stroke="#0080ff" stroke-width="1.4" stroke-dasharray="10 6"/>`);
         parts.push(`<line x1="${L(W - gw)}" y1="${Tp(bodyTop)}" x2="${L(W - gw)}" y2="${Tp(bottomEdge)}" stroke="#0080ff" stroke-width="1.4" stroke-dasharray="10 6"/>`);
       }
-
-      // bottom gusset
       if (T.bottomGusset) {
         parts.push(`<rect x="${L(0)}" y="${Tp(H - gussetH)}" width="${W * S}" height="${gussetH * S}" fill="rgba(0,128,255,0.08)"/>`);
         parts.push(`<line x1="${L(0)}" y1="${Tp(H - gussetH)}" x2="${L(W)}" y2="${Tp(H - gussetH)}" stroke="#0080ff" stroke-width="1.5" stroke-dasharray="10 6"/>`);
       }
-
-      // fin / lap back seal
       if (T.fin) {
         parts.push(`<line x1="${L(W / 2)}" y1="${Tp(bodyTop + (T.sealTop ? sealW : 0))}" x2="${L(W / 2)}" y2="${Tp(bottomEdge - (T.sealBottom ? sealW : 0))}" stroke="#9333ea" stroke-width="1.3" stroke-dasharray="${T.fin === "lap" ? "12 4" : "5 5"}"/>`);
       }
 
+      // tamper-evident band
+      if (tamper) {
+        parts.push(`<rect x="${L(sideInset)}" y="${Tp(bodyTop + sealW + 0.02)}" width="${(W - sideInset * 2) * S}" height="${0.14 * S}" fill="rgba(220,38,38,0.12)" stroke="#dc2626" stroke-width="1"/>`);
+      }
+
       // zipper
       if (zipOn) {
-        parts.push(`<rect x="${L(sideInset)}" y="${Tp(zipTop)}" width="${(W - sideInset * 2) * S}" height="${zipH * S}" fill="rgba(124,58,237,0.10)" stroke="#7c3aed" stroke-width="1.3"/>`);
+        const zStroke = zipperType === "cr" ? 2.2 : 1.3;
+        parts.push(`<rect x="${L(sideInset)}" y="${Tp(zipTop)}" width="${(W - sideInset * 2) * S}" height="${zipH * S}" fill="rgba(124,58,237,0.10)" stroke="#7c3aed" stroke-width="${zStroke}"/>`);
         parts.push(`<line x1="${L(sideInset)}" y1="${Tp(zipTop + zipH / 2)}" x2="${L(W - sideInset)}" y2="${Tp(zipTop + zipH / 2)}" stroke="#7c3aed" stroke-width="1" stroke-dasharray="3 3"/>`);
+        if (zipperType === "cr")
+          parts.push(`<text x="${L(W / 2)}" y="${Tp(zipTop + zipH / 2) + 3.5}" text-anchor="middle" font-size="8.5" font-weight="bold" fill="#7c3aed">CR</text>`);
+      }
+
+      // laser score
+      if (laserScore) {
+        const scoreY = zipOn ? zipBottom + 0.12 : bodyTop + sealW + (tamper ? 0.2 : 0) + 0.18;
+        parts.push(`<line x1="${L(sideInset)}" y1="${Tp(scoreY)}" x2="${L(W - sideInset)}" y2="${Tp(scoreY)}" stroke="#dc2626" stroke-width="1.2" stroke-dasharray="2 3"/>`);
       }
 
       // tear notches
@@ -682,42 +730,71 @@ export function DieLineGenerator() {
         parts.push(`<path d="M ${L(W)} ${Tp(notchY) - 6} l -10 6 l 10 6 Z" fill="#16a34a"/>`);
       }
 
-      // hang hole (non-header)
-      if (hangOn && !T.header) {
-        parts.push(`<circle cx="${L(W / 2)}" cy="${Tp(bodyTop + sealW / 2)}" r="${0.125 * S}" fill="none" stroke="#16a34a" stroke-width="1.5"/>`);
+      // hang hole / euro slot
+      const hangCy = T.header ? headerH / 2 : bodyTop + sealW / 2;
+      if (hangOn) {
+        if (hangType === "euro") {
+          parts.push(`<rect x="${L(W / 2 - 0.45)}" y="${Tp(hangCy) - 0.09 * S}" width="${0.9 * S}" height="${0.18 * S}" rx="${0.09 * S}" fill="none" stroke="#16a34a" stroke-width="1.5"/>`);
+        } else {
+          parts.push(`<circle cx="${L(W / 2)}" cy="${Tp(hangCy)}" r="${0.125 * S}" fill="none" stroke="#16a34a" stroke-width="1.5"/>`);
+        }
       }
 
       // valve
       const vx = L(W * 0.72), vy = Tp(safeTop + 0.5);
-      if (valveOn) {
-        parts.push(`<circle cx="${vx}" cy="${vy}" r="${0.3 * S}" fill="none" stroke="#16a34a" stroke-width="1.3" stroke-dasharray="5 4"/>`);
+      if (valveOn) parts.push(`<circle cx="${vx}" cy="${vy}" r="${0.3 * S}" fill="none" stroke="#16a34a" stroke-width="1.3" stroke-dasharray="5 4"/>`);
+
+      // window / clear panel
+      if (windowType === "window" && safeBottom > safeTop + 1.2) {
+        const ww = Math.min(1.6, (safeRight - safeLeft) * 0.5);
+        const wh = Math.min(2.2, (safeBottom - safeTop) * 0.45);
+        const wx = safeLeft + (safeRight - safeLeft - ww) / 2;
+        const wy = safeTop + (safeBottom - safeTop) * 0.32;
+        parts.push(`<rect x="${L(wx)}" y="${Tp(wy)}" width="${ww * S}" height="${wh * S}" rx="8" fill="rgba(56,189,248,0.10)" stroke="#0284c7" stroke-width="1.4" stroke-dasharray="6 4"/>`);
+        mark(L(wx + ww / 2), Tp(wy), nFor("win"));
+      }
+      if (windowType === "clear-panel" && safeBottom > safeTop + 1) {
+        const cy0 = safeTop + (safeBottom - safeTop) * 0.4;
+        const ch = Math.min(1.4, (safeBottom - safeTop) * 0.3);
+        parts.push(`<rect x="${L(0)}" y="${Tp(cy0)}" width="${W * S}" height="${ch * S}" fill="rgba(56,189,248,0.10)" stroke="#0284c7" stroke-width="1.2" stroke-dasharray="6 4"/>`);
+        mark(L(W * 0.85), Tp(cy0 + ch / 2), nFor("win"));
       }
 
       // safe zone
       if (safeBottom > safeTop && safeRight > safeLeft) {
         parts.push(`<rect x="${L(safeLeft)}" y="${Tp(safeTop)}" width="${(safeRight - safeLeft) * S}" height="${(safeBottom - safeTop) * S}" fill="rgba(100,116,139,0.045)" stroke="#64748b" stroke-width="1.1" stroke-dasharray="4 4"/>`);
         if ((safeRight - safeLeft) * S > 70)
-          parts.push(`<text x="${L((safeLeft + safeRight) / 2)}" y="${Tp((safeTop + safeBottom) / 2) + 4}" text-anchor="middle" font-size="12" font-weight="bold" fill="#94a3b8" letter-spacing="2">SAFE ZONE</text>`);
+          parts.push(`<text x="${L((safeLeft + safeRight) / 2)}" y="${Tp(safeTop) + 14}" text-anchor="middle" font-size="11" font-weight="bold" fill="#94a3b8" letter-spacing="2">SAFE ZONE</text>`);
       }
 
+      // fill direction arrow
+      const fy1 = fillDir === "top" ? Tp(-bleed) - 26 : Tp(H + bleed) + 34;
+      const fy2 = fillDir === "top" ? Tp(-bleed) - 8 : Tp(H + bleed) + 16;
+      parts.push(`<line x1="${L(W * 0.12)}" y1="${fy1}" x2="${L(W * 0.12)}" y2="${fy2}" stroke="#16a34a" stroke-width="1.6"/>`);
+      const ah = fillDir === "top" ? fy2 : fy2;
+      parts.push(`<path d="M ${L(W * 0.12) - 5} ${ah - (fillDir === "top" ? 7 : -7) * -1} l 5 ${fillDir === "top" ? 7 : -7} l 5 ${fillDir === "top" ? -7 : 7}" fill="none" stroke="#16a34a" stroke-width="1.6"/>`);
+      mark(L(W * 0.12) + 18, (fy1 + fy2) / 2, nFor("fill"));
+
       // markers
-      mark(L(W * 0.5) + (hangOn && !T.header ? 26 : 0), Tp(bodyTop), nFor("die"));
+      mark(L(W * 0.5) + (hangOn && !T.header ? 30 : 0), Tp(bodyTop), nFor("die"));
       mark(L(-bleed), Tp(H * 0.12), nFor("bleed"));
       if (T.sealSides) mark(L(W - sealW / 2), Tp(H * 0.42), nFor("seal"));
-      else if (T.sealTop && !T.spout) mark(L(W * 0.82), Tp(bodyTop + sealW / 2), nFor("seal"));
+      else if (T.sealTop && !spoutOn) mark(L(W * 0.82), Tp(bodyTop + sealW / 2), nFor("seal"));
       if (T.fin) mark(L(W / 2), Tp(H * 0.62), nFor("fin"));
-      if (T.header) mark(L(W * 0.82), Tp(headerH / 2), nFor("fold"));
-      if (zipOn) mark(L(W * 0.5), Tp(zipTop + zipH / 2), nFor("zip"));
+      if (T.header) mark(L(W * 0.82), Tp(headerH / 2), nFor("Header") || nForText("Header"));
+      if (tamper) mark(L(W * 0.18), Tp(bodyTop + sealW + 0.09), nForText("Tamper"));
+      if (zipOn) mark(L(W * 0.32), Tp(zipTop + zipH / 2), nFor("zip"));
       if (tearNotch) mark(L(0) - 18, Tp(notchY), nForText("Tear"));
-      if (T.bottomGusset) mark(L(W * 0.5), Tp(H - gussetH / 2), nForText(T.id === "flat-bottom" ? "Flat-bottom" : "Gusset"));
+      if (laserScore) mark(L(W * 0.68), Tp(zipOn ? zipBottom + 0.12 : bodyTop + sealW + 0.38), nFor("score"));
+      if (T.bottomGusset) mark(L(W * 0.5), Tp(H - gussetH / 2), nForText("fold zone") || nForText("Gusset fold"));
       if (T.sideGusset) mark(L(G / 4), Tp(H * 0.5), nForText("Side gusset"));
-      if (T.spout) mark(L(W / 2) + 26, Tp(0.2), nForText("Spout"));
-      if (safeBottom > safeTop) mark(L(safeLeft) + 16, Tp(safeTop) + 16, nFor("safe"));
-      if (hangOn && !T.header) mark(L(W / 2) - 24, Tp(bodyTop + sealW / 2), nForText("Hang"));
+      if (spoutOn) mark(L(W / 2) + 28, Tp(bodyTop + 0.2), nForText("Spout"));
+      if (safeBottom > safeTop) mark(L(safeLeft) + 16, Tp(safeBottom) - 16, nFor("safe"));
+      if (hangOn && !T.header) mark(L(W / 2) - 28, Tp(hangCy), nForText(hangType === "euro" ? "Euro" : "Hang"));
       if (valveOn) mark(vx, vy, nForText("Degassing"));
     }
 
-    // dimensions (all bases)
+    // dimensions
     const dy = Tp(H + bleed) + 20;
     parts.push(`<line x1="${L(0)}" y1="${dy}" x2="${L(W)}" y2="${dy}" stroke="#94a3b8" stroke-width="1"/>`);
     parts.push(`<line x1="${L(0)}" y1="${dy - 5}" x2="${L(0)}" y2="${dy + 5}" stroke="#94a3b8" stroke-width="1"/>`);
@@ -741,6 +818,10 @@ export function DieLineGenerator() {
       case "fin": return `<line x1="0" y1="0" x2="24" y2="0" stroke="#9333ea" stroke-width="1.4" stroke-dasharray="5 4"/>`;
       case "fold": return `<line x1="0" y1="0" x2="24" y2="0" stroke="#0080ff" stroke-width="1.5" stroke-dasharray="8 5"/>`;
       case "safe": return `<rect x="0" y="-6" width="24" height="12" fill="rgba(100,116,139,0.06)" stroke="#64748b" stroke-width="1" stroke-dasharray="3 3"/>`;
+      case "win": return `<rect x="0" y="-6" width="24" height="12" rx="3" fill="rgba(56,189,248,0.12)" stroke="#0284c7" stroke-width="1.2" stroke-dasharray="4 3"/>`;
+      case "score": return `<line x1="0" y1="0" x2="24" y2="0" stroke="#dc2626" stroke-width="1.2" stroke-dasharray="2 3"/>`;
+      case "tamper": return `<rect x="0" y="-5" width="24" height="10" fill="rgba(220,38,38,0.12)" stroke="#dc2626" stroke-width="1"/>`;
+      case "fill": return `<path d="M 8 -6 l 0 12 M 3 1 l 5 5 l 5 -5" fill="none" stroke="#16a34a" stroke-width="1.5"/>`;
       default: return `<circle cx="12" cy="0" r="5.5" fill="none" stroke="#16a34a" stroke-width="1.4"/>`;
     }
   };
@@ -754,9 +835,15 @@ export function DieLineGenerator() {
         `<g transform="translate(26, 0)">${swatchFor(row)}</g>` +
         `<text x="60" y="3.5" font-size="10.5" fill="#334155">${row.text}</text></g>`
     )
-    .join("\n  ");
+    .join("\n  ") +
+    finishNotes
+      .map(
+        (t, i) =>
+          `<g transform="translate(0, ${legendRows.length * 19 + 8 + i * 16})"><text x="0" y="3.5" font-size="9.5" font-style="italic" fill="#64748b">• ${t}</text></g>`
+      )
+      .join("\n  ");
 
-  const specLine = `${T.name.split("·")[1]?.trim() ?? T.name} · ${fmtDim(W)} × ${fmtDim(H)}${needsG ? ` + ${fmtDim(G)} gusset` : ""}${T.base === "panel" ? ` · ${SEAL_WIDTHS.find((x) => x.v === sealW)?.label ?? ""}` : ""}`;
+  const specLine = `${T.name.split("·")[1]?.trim() ?? T.name} · ${fmtDim(W)} × ${fmtDim(H)}${needsG ? ` + ${fmtDim(G)} gusset` : ""}${isPanel || T.base === "lid" ? ` · ${SEAL_WIDTHS.find((x) => x.v === sealW)?.label ?? ""}` : ""} · bleed ${fmtDim(bleed)} · safe ${fmtDim(safety)}`;
 
   const svg = valid
     ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" font-family="Helvetica, Arial, sans-serif">
@@ -793,7 +880,7 @@ export function DieLineGenerator() {
         key={label}
         type="button"
         onClick={() => set(!value)}
-        className="flex items-center gap-2.5 rounded-full px-4 py-2 text-xs font-bold transition"
+        className="flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-bold transition"
         style={{
           border: `1px solid ${value ? "rgba(0,216,242,0.7)" : "rgba(255,255,255,0.14)"}`,
           background: value ? "rgba(0,216,242,0.12)" : "rgba(255,255,255,0.03)",
@@ -814,84 +901,174 @@ export function DieLineGenerator() {
       </button>
     ) : null;
 
+  const LevelHead = ({ n, title, hint }: { n: string; title: string; hint: string }) => (
+    <div className="flex flex-wrap items-baseline gap-3">
+      <span className="kicker text-[10px]">Level {n}</span>
+      <span className="text-sm font-black text-paper">{title}</span>
+      <span className="text-xs text-muted-dark">{hint}</span>
+    </div>
+  );
+
   return (
-    <div className="grid gap-5">
-      {/* Dieline type selector */}
-      <div className="grid gap-4 sm:grid-cols-[1.4fr,1fr]">
-        <Field label="Dieline type (20 available)">
+    <div className="grid gap-6">
+      {/* ===== LEVEL 1 ===== */}
+      <div className="grid gap-3">
+        <LevelHead n="1" title="Core Package Format" hint="the dieline family" />
+        <div className="grid gap-4 sm:grid-cols-[1.4fr,1fr]">
           <select style={inputStyle} value={typeId} onChange={(e) => pickType(e.target.value)}>
             {DIELINE_TYPES.map((t) => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </select>
-        </Field>
-        <div
-          className="rounded-2xl p-3.5"
-          style={{ border: "1px solid rgba(0,216,242,0.2)", background: "rgba(0,216,242,0.04)" }}
-        >
-          <div className="kicker mb-1 text-[10px]">Common use</div>
-          <p className="text-sm leading-snug text-muted-light">{T.use}</p>
-        </div>
-      </div>
-      {T.note && (
-        <p className="rounded-xl p-3 text-xs leading-relaxed text-muted" style={{ border: "1px solid rgba(0,216,242,0.18)", background: "rgba(255,255,255,0.03)" }}>
-          {T.note}
-        </p>
-      )}
-
-      {/* Units + dims */}
-      <div className="flex flex-wrap items-center gap-2">
-        {(["in", "mm"] as const).map((u) => (
-          <button
-            key={u}
-            type="button"
-            onClick={() => setUnit(u)}
-            className="rounded-full px-3 py-2 text-xs font-extrabold uppercase transition"
-            style={{
-              border: `1px solid ${unit === u ? "rgba(0,216,242,0.7)" : "rgba(255,255,255,0.14)"}`,
-              background: unit === u ? "rgba(0,216,242,0.12)" : "rgba(255,255,255,0.03)",
-              color: unit === u ? "#34e3f5" : "#a9b9c8",
-            }}
+          <div
+            className="rounded-2xl px-4 py-3"
+            style={{ border: "1px solid rgba(0,216,242,0.2)", background: "rgba(0,216,242,0.04)" }}
           >
-            {u}
-          </button>
-        ))}
-      </div>
-      <div className={`grid gap-5 ${needsG ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
-        <Field label={`${T.base === "web" ? "Web width" : T.base === "sleeve" ? "Layflat width" : "Width"} (${unit})`}>
-          <input style={inputStyle} type="number" min="0" step={unit === "mm" ? 5 : 0.25} value={w} onChange={(e) => setW(e.target.value)} />
-        </Field>
-        <Field label={`${T.base === "web" ? "Print repeat" : T.base === "sleeve" ? "Cut length" : "Height"} (${unit})`}>
-          <input style={inputStyle} type="number" min="0" step={unit === "mm" ? 5 : 0.25} value={h} onChange={(e) => setH(e.target.value)} />
-        </Field>
-        {needsG && (
-          <Field label={`${T.sideGusset ? "Side gusset" : "Bottom gusset"} (${unit})`}>
-            <input style={inputStyle} type="number" min="0" step={unit === "mm" ? 5 : 0.25} value={g} onChange={(e) => setG(e.target.value)} />
-          </Field>
-        )}
-        {T.base !== "web" && T.base !== "sleeve" && (
-          <Field label="Seal width">
-            <select style={inputStyle} value={sealW} onChange={(e) => setSealW(parseFloat(e.target.value))}>
-              {SEAL_WIDTHS.map((x) => (
-                <option key={x.v} value={x.v}>{x.label}</option>
-              ))}
-            </select>
-          </Field>
+            <span className="kicker mr-2 text-[10px]">Common use</span>
+            <span className="text-sm text-muted-light">{T.use}</span>
+          </div>
+        </div>
+        {T.note && (
+          <p className="rounded-xl p-3 text-xs leading-relaxed text-muted" style={{ border: "1px solid rgba(0,216,242,0.18)", background: "rgba(255,255,255,0.03)" }}>
+            {T.note}
+          </p>
         )}
       </div>
 
-      {/* Feature toggles (per-type availability) */}
-      {T.base === "panel" && (
-        <div>
-          <div className="kicker mb-2 text-[10px]">Features for this dieline</div>
-          <div className="flex flex-wrap gap-2">
-            {toggle("Zipper", zipper, setZipper, Boolean(T.zipperOk))}
+      {/* ===== LEVEL 2 ===== */}
+      {isPanel && (
+        <div className="grid gap-3">
+          <LevelHead n="2" title="Structural Variation" hint="features that create dieline versions" />
+          <div className="flex flex-wrap items-center gap-2">
+            {T.zipperOk && (
+              <select
+                style={{ ...inputStyle, width: "auto", padding: "8px 12px", fontSize: 12 }}
+                value={zipperType}
+                onChange={(e) => setZipperType(e.target.value as typeof zipperType)}
+              >
+                <option value="none">No zipper</option>
+                <option value="standard">Zipper</option>
+                <option value="cr">Child-resistant zipper</option>
+              </select>
+            )}
+            {!T.header && (
+              <select
+                style={{ ...inputStyle, width: "auto", padding: "8px 12px", fontSize: 12 }}
+                value={hangType}
+                onChange={(e) => setHangType(e.target.value as typeof hangType)}
+              >
+                <option value="none">No hang hole</option>
+                <option value="round">Round hang hole</option>
+                <option value="euro">Euro slot</option>
+              </select>
+            )}
+            <select
+              style={{ ...inputStyle, width: "auto", padding: "8px 12px", fontSize: 12 }}
+              value={windowType}
+              onChange={(e) => setWindowType(e.target.value as typeof windowType)}
+            >
+              <option value="none">No window</option>
+              <option value="window">Registered window</option>
+              <option value="clear-panel">Clear panel</option>
+            </select>
             {toggle("Tear notches", tearNotch, setTearNotch)}
-            {toggle("Hang hole", hangHole, setHangHole, !T.header)}
-            {toggle("Degassing valve", valve, setValve, Boolean(T.valveOk))}
+            {toggle("Round corners", roundCorners, setRoundCorners)}
+            {toggle("Spout", spout || Boolean(T.spoutDefault), setSpout, Boolean(T.spoutOk) && !T.spoutDefault)}
+            {toggle("Valve", valve, setValve, Boolean(T.valveOk))}
+            {toggle("Laser score", laserScore, setLaserScore)}
+            {toggle("Easy-peel seal", easyPeel, setEasyPeel)}
+            {toggle("Tamper-evident", tamper, setTamper)}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-muted-dark">Material flags:</span>
+            {toggle("Spot varnish", spotVarnish, setSpotVarnish)}
+            {toggle("Foil / metalized", foil, setFoil)}
           </div>
         </div>
       )}
+
+      {/* ===== LEVEL 3 ===== */}
+      <div className="grid gap-3">
+        <LevelHead n="3" title="Production-Specific Version" hint="exact dimensions & press details" />
+        <div className="flex flex-wrap items-center gap-2">
+          {(["in", "mm"] as const).map((u) => (
+            <button
+              key={u}
+              type="button"
+              onClick={() => setUnit(u)}
+              className="rounded-full px-3 py-2 text-xs font-extrabold uppercase transition"
+              style={{
+                border: `1px solid ${unit === u ? "rgba(0,216,242,0.7)" : "rgba(255,255,255,0.14)"}`,
+                background: unit === u ? "rgba(0,216,242,0.12)" : "rgba(255,255,255,0.03)",
+                color: unit === u ? "#34e3f5" : "#a9b9c8",
+              }}
+            >
+              {u}
+            </button>
+          ))}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          <Field label={`${T.base === "web" ? "Web width" : T.base === "sleeve" ? "Layflat width" : "Width"} (${unit})`}>
+            <input style={inputStyle} type="number" min="0" step={unit === "mm" ? 5 : 0.25} value={w} onChange={(e) => setW(e.target.value)} />
+          </Field>
+          <Field label={`${T.base === "web" ? "Repeat" : T.base === "sleeve" ? "Cut length" : "Height"} (${unit})`}>
+            <input style={inputStyle} type="number" min="0" step={unit === "mm" ? 5 : 0.25} value={h} onChange={(e) => setH(e.target.value)} />
+          </Field>
+          {needsG && (
+            <Field label={`${T.sideGusset ? "Side gusset" : "Gusset depth"} (${unit})`}>
+              <input style={inputStyle} type="number" min="0" step={unit === "mm" ? 5 : 0.25} value={g} onChange={(e) => setG(e.target.value)} />
+            </Field>
+          )}
+          {(isPanel || T.base === "lid") && (
+            <Field label="Seal size">
+              <select style={inputStyle} value={sealW} onChange={(e) => setSealW(parseFloat(e.target.value))}>
+                {SEAL_WIDTHS.map((x) => (
+                  <option key={x.v} value={x.v}>{x.label}</option>
+                ))}
+              </select>
+            </Field>
+          )}
+          <Field label="Bleed (in)">
+            <input style={inputStyle} type="number" min="0.0625" max="0.5" step="0.0625" value={bleedIn} onChange={(e) => setBleedIn(e.target.value)} />
+          </Field>
+          <Field label="Safe zone inset (in)">
+            <input style={inputStyle} type="number" min="0.0625" max="0.5" step="0.0625" value={safetyIn} onChange={(e) => setSafetyIn(e.target.value)} />
+          </Field>
+          {isPanel && (
+            <Field label="Machine fill direction">
+              <select style={inputStyle} value={fillDir} onChange={(e) => setFillDir(e.target.value as typeof fillDir)}>
+                <option value="top">Top fill</option>
+                <option value="bottom">Bottom fill</option>
+              </select>
+            </Field>
+          )}
+          {isPanel && (
+            <Field label="Front/back art orientation">
+              <select style={inputStyle} value={artOrient} onChange={(e) => setArtOrient(e.target.value as typeof artOrient)}>
+                <option value="standard">Same orientation</option>
+                <option value="back-inverted">Back inverted</option>
+              </select>
+            </Field>
+          )}
+          {T.base === "web" && (
+            <>
+              <Field label="Unwind direction">
+                <select style={inputStyle} value={unwind} onChange={(e) => setUnwind(e.target.value)}>
+                  {UNWINDS.map((u) => (
+                    <option key={u}>{u}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Eye mark location">
+                <select style={inputStyle} value={eyeMarkPos} onChange={(e) => setEyeMarkPos(e.target.value as typeof eyeMarkPos)}>
+                  <option value="left">Left edge</option>
+                  <option value="right">Right edge</option>
+                </select>
+              </Field>
+            </>
+          )}
+        </div>
+      </div>
 
       {valid ? (
         <div className="overflow-x-auto rounded-2xl bg-white p-2" style={{ border: "1px solid rgba(255,255,255,0.2)" }}>
@@ -913,10 +1090,11 @@ export function DieLineGenerator() {
         <a href="/#quote-form" className="btn btn-secondary">Request Production Die Line</a>
       </div>
       <Disclaimer>
-        20 dieline types with zone-accurate planning templates — seal zones, gusset folds,
-        fin seals, header zones, sleeve distortion bands, and the Safe Zone, each numbered
-        and explained in the legend. Production die lines add machine-specific allowances
-        and exact feature placement — request one from your specialist before final artwork.
+        One core format multiplies into many dieline versions — Level 1 picks the family,
+        Level 2 adds the structural features (zipper, notch, window, spout, score, and more),
+        and Level 3 pins the production-specific numbers: exact size, seal width, bleed, Safe
+        Zone, fill direction, unwind, and registration. Production die lines confirm machine
+        compatibility — request one from your specialist before final artwork.
       </Disclaimer>
     </div>
   );
