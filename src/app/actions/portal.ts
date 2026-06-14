@@ -37,6 +37,7 @@ export type PortalQuote = {
   payTerms: string;
   tiers: QtyTier[]; // resolved for the currently-selected SKU column
   skuCount: number; // number of SKU variants available
+  items: { label: string; tiers: QtyTier[] }[]; // per-SKU pricing for the detail view
   // PO submission state (what the client has entered/locked in)
   poNumber?: string;
   poShipTo?: string;
@@ -338,6 +339,11 @@ export async function getPortalData(idToken: string): Promise<PortalData> {
       payTerms: String(f.payTerms ?? "Net 30"),
       tiers: resolveTiers(data, selSku),
       skuCount,
+      items: Array.from({ length: Math.max(1, skuCount) }, (_, col) => {
+        const names = data.skuNames as unknown[] | undefined;
+        const label = Array.isArray(names) && names[col] ? String(names[col]) : skuCount > 1 ? `Item ${col + 1}` : "Item";
+        return { label, tiers: resolveTiers(data, col) };
+      }),
       poNumber: data.poNumber ? String(data.poNumber) : undefined,
       poShipTo: data.poShipTo ? String(data.poShipTo) : undefined,
       poInstructions: data.poInstructions ? String(data.poInstructions) : undefined,
@@ -804,6 +810,57 @@ export async function sendQuoteMessage(
     `Portal message — ${snap.data()!.quoteNum ?? quoteId}`,
     [`Client: ${user.name} <${user.email}>`, ``, text.trim()].join("\n")
   );
+  return { ok: true };
+}
+
+/* ------------------- write: quote / item request ------------------------ */
+
+const REQUEST_LABELS: Record<string, string> = {
+  question: "Question",
+  change: "Change / Revision Request",
+  sample: "Sample Request",
+  qty: "Different Qty / SKU Request",
+};
+
+export async function submitQuoteRequest(
+  idToken: string,
+  quoteId: string,
+  input: { type: string; item?: string; message: string }
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await verifyUser(idToken);
+  if (!input.message.trim()) return { ok: false, error: "Please add a few details." };
+
+  const ref = adminDb.collection("quotes").doc(quoteId);
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: false, error: "Quote not found." };
+  const quote = snap.data()!;
+  if (!emailMatchesQuote(quote, user.email)) return { ok: false, error: "Not authorized for this quote." };
+
+  const label = REQUEST_LABELS[input.type] ?? "Request";
+  const scope = input.item ? ` · ${input.item}` : "";
+
+  await ref.collection("portalMessages").add({
+    text: `🔔 ${label}${scope}: ${input.message.trim()}`,
+    name: user.name,
+    from: "client",
+    type: "request",
+    requestType: input.type,
+    item: input.item ?? null,
+    timestamp: FieldValue.serverTimestamp(),
+  });
+
+  await notifyTeam(
+    `Portal ${label} — ${quote.quoteNum ?? quoteId}`,
+    [
+      `Client: ${user.name} <${user.email}>`,
+      `Quote: ${quote.quoteNum ?? quoteId}`,
+      input.item ? `Item: ${input.item}` : "",
+      `Type: ${label}`,
+      ``,
+      input.message.trim(),
+    ].join("\n")
+  );
+
   return { ok: true };
 }
 

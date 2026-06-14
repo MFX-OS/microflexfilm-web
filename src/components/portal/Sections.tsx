@@ -9,6 +9,7 @@ import {
   sendQuoteMessage,
   recordQuoteFiles,
   submitProfileChange,
+  submitQuoteRequest,
   type PortalData,
   type PortalQuote,
   type PortalSalesOrder,
@@ -201,55 +202,206 @@ export function Status({ data }: { data: PortalData }) {
 /* ============================ QUOTES ============================ */
 
 export function Quotes({ data, user, refresh }: { data: PortalData; user: User; refresh: () => void }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const openQuote = data.quotes.find((q) => q.id === openId) ?? null;
   return (
     <div>
-      <SectionHeading title="Quotes" hint="Review pricing, pick your quantity, and submit a PO." />
+      <SectionHeading title="Quotes" hint="Click a quote for full details, item pricing, and to submit a PO or request a change." />
       {data.quotes.length === 0 ? (
-        <EmptyState>No quotes yet. When our team sends you a quote, it lands here for review and one-click PO submission.</EmptyState>
+        <EmptyState>No quotes yet. When our team sends you a quote, it lands here for review.</EmptyState>
       ) : (
         <div className="grid gap-4">
-          {data.quotes.map((q) => <QuoteCard key={q.id} quote={q} user={user} refresh={refresh} />)}
+          {data.quotes.map((q) => <QuoteCard key={q.id} quote={q} onOpen={() => setOpenId(q.id)} />)}
         </div>
       )}
+      {openQuote && <QuoteDetailModal quote={openQuote} user={user} refresh={refresh} onClose={() => setOpenId(null)} />}
     </div>
   );
 }
 
-function QuoteCard({ quote, user, refresh }: { quote: PortalQuote; user: User; refresh: () => void }) {
-  const [open, setOpen] = useState(quote.canSubmitPO);
+function QuoteCard({ quote, onOpen }: { quote: PortalQuote; onOpen: () => void }) {
   return (
-    <Panel>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="font-mono text-xs font-bold text-cyan">{quote.quoteNum}{quote.rev ? `-${quote.rev}` : ""}</span>
-            <span className="text-base font-bold text-paper">{quote.company || quote.jobDesc}</span>
+    <button type="button" onClick={onOpen} className="block w-full text-left transition hover:-translate-y-0.5">
+      <Panel>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="font-mono text-xs font-bold text-cyan">{quote.quoteNum}{quote.rev ? `-${quote.rev}` : ""}</span>
+              <span className="text-base font-bold text-paper">{quote.company || quote.jobDesc}</span>
+            </div>
+            {quote.specs && <p className="mt-1 text-xs text-muted">{quote.specs}</p>}
+            <p className="mt-0.5 text-xs text-muted-dark">
+              {quote.items.length > 1 ? `${quote.items.length} items · ` : ""}Terms {quote.payTerms} · Updated {fmtDate(quote.updatedAt)}
+            </p>
           </div>
-          {quote.specs && <p className="mt-1 text-xs text-muted">{quote.specs}</p>}
-          <p className="mt-0.5 text-xs text-muted-dark">Terms {quote.payTerms} · Updated {fmtDate(quote.updatedAt)}</p>
+          <StatusChip status={quote.status} label={quote.statusLabel} />
         </div>
-        <StatusChip status={quote.status} label={quote.statusLabel} />
-      </div>
-
-      {quote.canSubmitPO ? (
-        <>
-          <button type="button" onClick={() => setOpen(!open)} className="mt-4 text-sm font-bold text-cyan underline">
-            {open ? "Hide PO form" : "Review & submit PO →"}
-          </button>
-          {open && <POForm quote={quote} user={user} refresh={refresh} />}
-        </>
-      ) : (
-        <div className="mt-4 rounded-xl p-3 text-xs text-muted" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
-          {quote.poNumber ? (
-            <>PO <span className="font-bold text-paper">#{quote.poNumber}</span> submitted
-            {quote.poSelectedQty ? ` · ${quote.poSelectedQty.toLocaleString()} units` : ""}
-            {quote.poSelectedTotal ? ` · ${fmtMoney(quote.poSelectedTotal)}` : ""}. We&apos;ll take it from here.</>
-          ) : (
-            <>This quote is {quote.statusLabel.toLowerCase()}.</>
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <span className="text-xs font-bold text-cyan">View details &amp; request →</span>
+          {quote.canSubmitPO && (
+            <span className="rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider" style={{ background: "rgba(255,196,0,0.12)", border: "1px solid rgba(255,196,0,0.4)", color: "#ffd34d" }}>
+              Action needed
+            </span>
           )}
         </div>
-      )}
-    </Panel>
+      </Panel>
+    </button>
+  );
+}
+
+/* ----- modal shell ----- */
+
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 sm:p-8"
+      style={{ background: "rgba(2,5,9,0.7)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+      <div className="relative w-full max-w-3xl rounded-4xl p-6 md:p-8"
+        style={{ border: "1px solid rgba(0,216,242,0.35)", background: "linear-gradient(180deg, #0a1622, #061018)", boxShadow: "0 34px 90px rgba(0,0,0,0.6)" }}
+        onClick={(e) => e.stopPropagation()}>
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <h2 className="text-xl font-black text-paper">{title}</h2>
+          <button type="button" onClick={onClose} className="btn btn-dark" style={{ minHeight: 36, fontSize: 13 }}>✕ Close</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ----- quote detail modal ----- */
+
+const REQ_TYPES: { key: string; label: string }[] = [
+  { key: "question", label: "Ask a question" },
+  { key: "change", label: "Request a change / revision" },
+  { key: "sample", label: "Request a sample" },
+  { key: "qty", label: "Request different qty / SKU" },
+];
+
+function QuoteDetailModal({ quote, user, refresh, onClose }: { quote: PortalQuote; user: User; refresh: () => void; onClose: () => void }) {
+  const [showPO, setShowPO] = useState(false);
+  const [reqItem, setReqItem] = useState<string | null>(null); // item label, "" = quote-level, null = closed
+
+  return (
+    <Modal title={`${quote.quoteNum}${quote.rev ? `-${quote.rev}` : ""}`} onClose={onClose}>
+      <div className="grid gap-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <span className="text-lg font-bold text-paper">{quote.company || quote.jobDesc}</span>
+            {quote.attn && <p className="text-sm text-muted">Attn: {quote.attn}</p>}
+          </div>
+          <StatusChip status={quote.status} label={quote.statusLabel} />
+        </div>
+
+        {quote.specs && (
+          <div>
+            <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-widest text-muted">Specification</span>
+            <p className="text-sm text-paper">{quote.specs}</p>
+            <p className="mt-1 text-xs text-muted-dark">Payment terms: {quote.payTerms}</p>
+          </div>
+        )}
+
+        <div>
+          <span className="mb-2 block text-xs font-extrabold uppercase tracking-widest text-muted">Items &amp; pricing</span>
+          <div className="grid gap-3">
+            {quote.items.map((it, idx) => (
+              <div key={idx} className="rounded-2xl p-4" style={{ border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.02)" }}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-sm font-bold text-paper">{it.label}</span>
+                  <button type="button" onClick={() => setReqItem(reqItem === it.label ? null : it.label)} className="text-xs font-bold text-cyan underline">
+                    Request on this item
+                  </button>
+                </div>
+                {it.tiers.length === 0 ? (
+                  <p className="text-xs text-muted">Pricing pending.</p>
+                ) : (
+                  <div className="grid gap-1">
+                    {it.tiers.map((t, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm">
+                        <span className="text-paper">{t.qty.toLocaleString()} units</span>
+                        <span className="text-muted">{t.ppu ? `${fmtMoney(t.ppu)}/unit · ` : ""}<span className="font-bold text-cyan">{t.total ? fmtMoney(t.total) : "—"}</span></span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {reqItem === it.label && (
+                  <QuoteRequestForm quote={quote} user={user} item={it.label} onDone={() => { setReqItem(null); refresh(); }} />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {(quote.poFiles.length > 0 || quote.artFiles.length > 0) && (
+          <div>
+            <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-widest text-muted">Files</span>
+            <div className="grid gap-1">
+              {[...quote.poFiles.map((f) => ({ ...f, tag: "PO" })), ...quote.artFiles.map((f) => ({ ...f, tag: "Art" }))].map((f, i) => (
+                <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-cyan underline">📎 {f.tag}: {f.name}</a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2 border-t pt-5" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+          {quote.canSubmitPO && (
+            <button type="button" onClick={() => setShowPO(!showPO)} className="btn btn-primary" style={{ minHeight: 40, fontSize: 13 }}>
+              {showPO ? "Hide PO form" : "Submit PO →"}
+            </button>
+          )}
+          <button type="button" onClick={() => setReqItem(reqItem === "" ? null : "")} className="btn btn-secondary" style={{ minHeight: 40, fontSize: 13 }}>
+            Ask / request about this quote
+          </button>
+        </div>
+
+        {reqItem === "" && <QuoteRequestForm quote={quote} user={user} onDone={() => { setReqItem(null); refresh(); }} />}
+
+        {!quote.canSubmitPO && quote.poNumber && (
+          <p className="text-xs text-muted">PO #{quote.poNumber} submitted{quote.poSelectedQty ? ` · ${quote.poSelectedQty.toLocaleString()} units` : ""}{quote.poSelectedTotal ? ` · ${fmtMoney(quote.poSelectedTotal)}` : ""}.</p>
+        )}
+
+        {showPO && quote.canSubmitPO && <POForm quote={quote} user={user} refresh={refresh} />}
+      </div>
+    </Modal>
+  );
+}
+
+function QuoteRequestForm({ quote, user, item, onDone }: { quote: PortalQuote; user: User; item?: string; onDone: () => void }) {
+  const [type, setType] = useState(REQ_TYPES[0].key);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function send() {
+    if (!message.trim()) { setErr("Please add a few details."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await submitQuoteRequest(token, quote.id, { type, item, message });
+      if (!res.ok) { setErr(res.error ?? "Could not send."); return; }
+      setDone(true);
+      setTimeout(onDone, 1200);
+    } catch { setErr("Could not send — please try again."); } finally { setBusy(false); }
+  }
+
+  if (done) return <p className="mt-3 text-sm font-bold" style={{ color: "#7dffb0" }}>✓ Sent — our team will follow up.</p>;
+
+  return (
+    <div className="mt-3 grid gap-3 rounded-2xl p-4" style={{ border: "1px solid rgba(0,216,242,0.3)", background: "rgba(0,216,242,0.05)" }}>
+      {item && <p className="text-xs font-bold text-cyan">Request on {item}</p>}
+      <Field label="Type">
+        <select style={inputStyle} value={type} onChange={(e) => setType(e.target.value)}>
+          {REQ_TYPES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+        </select>
+      </Field>
+      <Field label="Details">
+        <textarea style={{ ...inputStyle, minHeight: 80, resize: "vertical" }} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="What would you like?" autoFocus />
+      </Field>
+      {err && <p className="text-sm text-red-300">{err}</p>}
+      <button type="button" disabled={busy} onClick={() => void send()} className="btn btn-primary" style={{ minHeight: 38, fontSize: 13, ...dim(busy) }}>
+        {busy ? "Sending…" : "Send Request"}
+      </button>
+    </div>
   );
 }
 
