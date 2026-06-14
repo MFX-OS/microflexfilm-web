@@ -46,3 +46,41 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
+  # ---------------------------------------------------------------------------
+  # Firebase WEB (client) SDK config — PUBLIC identifiers, safe to commit.
+  # REQUIRED at BUILD time, or the client portal renders its "coming online"
+  # placeholder. Get apiKey + appId from Firebase Console → Project settings →
+  # Your apps → SDK setup and configuration (the firebaseConfig object).
+  # ---------------------------------------------------------------------------
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyAdfG72UJyKU8E6arutax3_tm29HVvuhUk"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "mfx-2026.firebaseapp.com"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "mfx-2026"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:21746521413:web:40ae99abfe6455bb0a1a2c"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # Enables portal file uploads. Confirm the exact bucket in Console → Storage
+  # (usually mfx-2026.firebasestorage.app or mfx-2026.appspot.com).
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "mfx-2026.firebasestorage.app"
+    availability:
+      - BUILD
+      - RUNTIME
