@@ -50,6 +50,7 @@ export type PortalQuote = {
   poSelectedTotal?: number;
   poFiles: PortalFile[];
   artFiles: PortalFile[];
+  quotePdfUrl?: string; // generated quote PDF (Drive link)
   createdAt: string;
   updatedAt: string;
   canSubmitPO: boolean; // status === 'sent'
@@ -77,6 +78,7 @@ export type PortalSalesOrder = {
   artworkRevisionNote?: string;
   signatureFlow?: string;
   signingDocLink?: string;
+  pdfUrl?: string; // signed sales-order PDF (Drive link)
   artFiles: PortalFile[];
   createdAt: string;
 };
@@ -355,6 +357,7 @@ export async function getPortalData(idToken: string): Promise<PortalData> {
       poSelectedTotal: data.poSelectedTotal != null ? num(data.poSelectedTotal) : undefined,
       poFiles: mapFiles(data.poFiles),
       artFiles: mapFiles(data.artFiles),
+      quotePdfUrl: data.driveLink ? String(data.driveLink) : undefined,
       createdAt: toIso(data.createdAt),
       updatedAt: toIso(data.updatedAt ?? data.createdAt),
       canSubmitPO: status === "sent",
@@ -385,6 +388,11 @@ export async function getPortalData(idToken: string): Promise<PortalData> {
       artworkRevisionNote: data.artworkRevisionNote ? String(data.artworkRevisionNote) : undefined,
       signatureFlow: data.signatureFlow ? String(data.signatureFlow) : undefined,
       signingDocLink: data.signingDocLink ? String(data.signingDocLink) : undefined,
+      pdfUrl: data.portalSignedPdfLink
+        ? String(data.portalSignedPdfLink)
+        : data.driveLink
+          ? String(data.driveLink)
+          : undefined,
       artFiles: mapFiles(data.artFiles),
       createdAt: toIso(data.createdAt),
     };

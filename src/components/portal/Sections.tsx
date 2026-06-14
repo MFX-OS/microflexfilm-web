@@ -33,6 +33,52 @@ export type SectionKey = "overview" | "quotes" | "orders" | "status" | "messages
 
 const dim = (on: boolean) => (on ? { opacity: 0.55 } : undefined);
 
+/* ---- document preview helpers ---- */
+
+function drivePreview(url: string): string {
+  // Convert a Google Drive file link into its embeddable /preview form.
+  const m = url.match(/\/file\/d\/([^/]+)/) || url.match(/[?&]id=([^&]+)/);
+  return m ? `https://drive.google.com/file/d/${m[1]}/preview` : url;
+}
+const isPdfName = (s: string) => /\.pdf($|\?)/i.test(s);
+const isImageName = (s: string) => /\.(png|jpe?g|gif|webp|svg)($|\?)/i.test(s);
+const isDriveUrl = (s: string) => /drive\.google\.com/.test(s);
+
+function PdfFrame({ url, title }: { url: string; title: string }) {
+  const src = isDriveUrl(url) ? drivePreview(url) : url;
+  return (
+    <div className="overflow-hidden rounded-xl" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
+      <div className="flex items-center justify-between px-3 py-2" style={{ background: "rgba(255,255,255,0.03)" }}>
+        <span className="text-xs font-bold text-paper">{title}</span>
+        <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-cyan underline">Open ↗</a>
+      </div>
+      <iframe src={src} title={title} className="w-full" style={{ height: 460, border: 0, background: "#fff" }} />
+    </div>
+  );
+}
+
+function FilePreview({ file, label }: { file: PortalFile; label: string }) {
+  const heading = (
+    <div className="flex items-center justify-between px-3 py-2" style={{ background: "rgba(255,255,255,0.03)" }}>
+      <span className="text-xs font-bold text-paper">{label}: {file.name}</span>
+      <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-cyan underline">Open ↗</a>
+    </div>
+  );
+  if (isImageName(file.name)) {
+    return (
+      <div className="overflow-hidden rounded-xl" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
+        {heading}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={file.url} alt={file.name} className="w-full" style={{ maxHeight: 460, objectFit: "contain", background: "#0a1622" }} />
+      </div>
+    );
+  }
+  if (isPdfName(file.name) || isDriveUrl(file.url)) {
+    return <PdfFrame url={file.url} title={`${label}: ${file.name}`} />;
+  }
+  return <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-cyan underline">📎 {label}: {file.name}</a>;
+}
+
 /* ============================ OVERVIEW ============================ */
 
 export function Overview({ data, go }: { data: PortalData; go: (s: SectionKey) => void }) {
@@ -300,6 +346,18 @@ function QuoteDetailModal({ quote, user, refresh, onClose }: { quote: PortalQuot
           </div>
         )}
 
+        {/* The Microflex quote PDF — the official quote document */}
+        <div>
+          <span className="mb-2 block text-xs font-extrabold uppercase tracking-widest text-muted">Your Microflex Quote</span>
+          {quote.quotePdfUrl ? (
+            <PdfFrame url={quote.quotePdfUrl} title="Microflex Quote (PDF)" />
+          ) : (
+            <p className="rounded-xl p-3 text-xs text-muted" style={{ border: "1px dashed rgba(255,255,255,0.14)" }}>
+              The quote PDF will appear here once our team issues it.
+            </p>
+          )}
+        </div>
+
         <div>
           <span className="mb-2 block text-xs font-extrabold uppercase tracking-widest text-muted">Items &amp; pricing</span>
           <div className="grid gap-3">
@@ -333,11 +391,10 @@ function QuoteDetailModal({ quote, user, refresh, onClose }: { quote: PortalQuot
 
         {(quote.poFiles.length > 0 || quote.artFiles.length > 0) && (
           <div>
-            <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-widest text-muted">Files</span>
-            <div className="grid gap-1">
-              {[...quote.poFiles.map((f) => ({ ...f, tag: "PO" })), ...quote.artFiles.map((f) => ({ ...f, tag: "Art" }))].map((f, i) => (
-                <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-cyan underline">📎 {f.tag}: {f.name}</a>
-              ))}
+            <span className="mb-2 block text-xs font-extrabold uppercase tracking-widest text-muted">PO &amp; Artwork</span>
+            <div className="grid gap-3">
+              {quote.poFiles.map((f, i) => <FilePreview key={`po${i}`} file={f} label="PO" />)}
+              {quote.artFiles.map((f, i) => <FilePreview key={`art${i}`} file={f} label="Artwork" />)}
             </div>
           </div>
         )}
@@ -620,6 +677,13 @@ function OrderCard({ so, user, refresh }: { so: PortalSalesOrder; user: User; re
         </a>
       )}
 
+      {/* signed sales-order PDF */}
+      {so.pdfUrl && (
+        <div className="mt-3">
+          <PdfFrame url={so.pdfUrl} title="Sales Order PDF" />
+        </div>
+      )}
+
       {/* signature */}
       {needsSignature ? (
         <div className="mt-4 rounded-2xl p-4" style={{ border: "1px solid rgba(0,216,242,0.3)", background: "rgba(0,216,242,0.05)" }}>
@@ -638,10 +702,8 @@ function OrderCard({ so, user, refresh }: { so: PortalSalesOrder; user: User; re
       {so.artFiles.length > 0 && (
         <div className="mt-4">
           <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-widest text-muted">Artwork proof</span>
-          <div className="grid gap-1">
-            {so.artFiles.map((f, i) => (
-              <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-cyan underline">📎 {f.name}</a>
-            ))}
+          <div className="grid gap-3">
+            {so.artFiles.map((f, i) => <FilePreview key={i} file={f} label="Proof" />)}
           </div>
           {needsArtwork ? (
             <>
