@@ -7,14 +7,12 @@ import { getPortalData, type PortalData } from "@/app/actions/portal";
 import Login from "./Login";
 import {
   Overview,
+  Quotes,
   Orders,
-  History,
-  Invoices,
-  RequestForm,
+  Status,
   Messages,
   Documents,
-  Approvals,
-  Notifications,
+  Account,
   type SectionKey,
 } from "./Sections";
 
@@ -38,14 +36,12 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 const NAV: { key: SectionKey; label: string; icon: string; badge?: keyof PortalData["badges"] }[] = [
   { key: "overview", label: "Overview", icon: "▦" },
-  { key: "orders", label: "Orders", icon: "📦", badge: "activeOrders" },
-  { key: "invoices", label: "Invoices", icon: "💳", badge: "unpaidInvoices" },
-  { key: "approvals", label: "Approvals", icon: "✓", badge: "pendingApprovals" },
+  { key: "quotes", label: "Quotes", icon: "📝", badge: "quotesToReview" },
+  { key: "orders", label: "Orders", icon: "📦", badge: "ordersToSign" },
+  { key: "status", label: "Status", icon: "📍", badge: "inProduction" },
   { key: "messages", label: "Messages", icon: "💬", badge: "unreadMessages" },
   { key: "documents", label: "Documents", icon: "📁" },
-  { key: "requests", label: "New Request", icon: "✚" },
-  { key: "history", label: "Reorder", icon: "⟳" },
-  { key: "notifications", label: "Notifications", icon: "🔔", badge: "unreadNotifications" },
+  { key: "account", label: "Account", icon: "🏢", badge: "profilePending" },
 ];
 
 /* ============ main app ============ */
@@ -188,16 +184,12 @@ export default function PortalApp() {
       ) : data ? (
         <>
           {section === "overview" && <Overview data={data} go={setSection} />}
-          {section === "orders" && <Orders data={data} go={setSection} />}
-          {section === "invoices" && <Invoices data={data} user={user} refresh={() => void refresh()} />}
-          {section === "approvals" && <Approvals data={data} user={user} refresh={() => void refresh()} />}
+          {section === "quotes" && <Quotes data={data} user={user} refresh={() => void refresh()} />}
+          {section === "orders" && <Orders data={data} user={user} refresh={() => void refresh()} />}
+          {section === "status" && <Status data={data} />}
           {section === "messages" && <Messages data={data} user={user} refresh={() => void refresh()} />}
-          {section === "documents" && <Documents data={data} user={user} refresh={() => void refresh()} />}
-          {section === "requests" && (
-            <RequestForm user={user} onDone={() => { setSection("overview"); void refresh(); }} />
-          )}
-          {section === "history" && <History data={data} user={user} refresh={() => void refresh()} />}
-          {section === "notifications" && <Notifications data={data} user={user} refresh={() => void refresh()} go={setSection} />}
+          {section === "documents" && <Documents data={data} />}
+          {section === "account" && <Account data={data} user={user} refresh={() => void refresh()} />}
         </>
       ) : null}
     </Shell>

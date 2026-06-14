@@ -18,6 +18,21 @@ export const STATUS_TONES: Record<string, { bg: string; border: string; color: s
   // approvals
   approved: { bg: "rgba(95,255,162,0.08)", border: "rgba(95,255,162,0.35)", color: "#7dffb0" },
   changes_requested: { bg: "rgba(255,196,0,0.1)", border: "rgba(255,196,0,0.4)", color: "#ffd34d" },
+  // quotes
+  draft: { bg: "rgba(169,185,200,0.08)", border: "rgba(169,185,200,0.3)", color: "#bdd0dc" },
+  approval: { bg: "rgba(0,216,242,0.08)", border: "rgba(0,216,242,0.35)", color: "#34e3f5" },
+  ready: { bg: "rgba(0,216,242,0.08)", border: "rgba(0,216,242,0.35)", color: "#34e3f5" },
+  sent: { bg: "rgba(255,196,0,0.1)", border: "rgba(255,196,0,0.4)", color: "#ffd34d" },
+  won: { bg: "rgba(95,255,162,0.08)", border: "rgba(95,255,162,0.35)", color: "#7dffb0" },
+  lost: { bg: "rgba(169,185,200,0.08)", border: "rgba(169,185,200,0.3)", color: "#bdd0dc" },
+  production: { bg: "rgba(0,216,242,0.14)", border: "rgba(0,216,242,0.55)", color: "#34e3f5" },
+  // sales orders
+  delivered: { bg: "rgba(95,255,162,0.08)", border: "rgba(95,255,162,0.35)", color: "#7dffb0" },
+  invoiced: { bg: "rgba(95,255,162,0.08)", border: "rgba(95,255,162,0.35)", color: "#7dffb0" },
+  fulfilled: { bg: "rgba(95,255,162,0.08)", border: "rgba(95,255,162,0.35)", color: "#7dffb0" },
+  closed: { bg: "rgba(169,185,200,0.08)", border: "rgba(169,185,200,0.3)", color: "#bdd0dc" },
+  rejected: { bg: "rgba(255,90,90,0.1)", border: "rgba(255,90,90,0.45)", color: "#ff9d9d" },
+  cancelled: { bg: "rgba(255,90,90,0.1)", border: "rgba(255,90,90,0.45)", color: "#ff9d9d" },
 };
 
 export function StatusChip({ status, label }: { status: string; label?: string }) {

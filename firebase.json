@@ -1,9 +1,3 @@
 {
-  "firestore": {
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
-  },
-  "storage": {
-    "rules": "storage.rules"
-  }
+  "$comment": "Firestore + Storage rules for project mfx-2026 are owned by the MFX-OS repo (the OS is the source of truth for the shared database). This site deploys only via Firebase App Hosting (git push to main) and reads Firestore through the Admin SDK, so it intentionally does NOT manage firestore/storage rules. Do not add a 'firestore' or 'storage' block here — deploying it would overwrite the OS rules on the shared mfx-2026 project."
 }

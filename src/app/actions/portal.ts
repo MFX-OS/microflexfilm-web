@@ -5,696 +5,872 @@ import nodemailer from "nodemailer";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
 
 /* ========================================================================
-   Types shared with the portal UI
+   Microflex client portal — backed by the SAME Firestore (mfx-2026) the
+   MFX-OS internal app uses. The client-facing workflow lives on:
+
+     quotes        → the hub. Client views the quote, picks a qty tier / SKU,
+                     uploads PO + art, and submits a PO (status sent → won),
+                     which auto-creates a salesOrder (mirrors portalSubmitPO).
+     salesOrders   → client signs + approves the artwork proof; staff drive it
+                     through production / shipping.
+     jobTickets    → production stages (linked back to the quote / SO).
+     quotes/{id}/portalMessages → per-quote communications thread.
+
+   All reads/writes here run through the Admin SDK (server actions), scoped
+   by the caller's verified email.
    ======================================================================== */
 
-export type PortalOrder = {
-  id: string;
-  orderNumber: string;
-  title: string;
-  packagingType: string;
-  quantity: string;
-  status: string; // pending | in_review | in_prepress | in_production | shipping | completed
-  statusLabel: string;
-  createdAt: string; // ISO
-  updatedAt: string; // ISO
-  notes?: string;
-  reorderable: boolean;
-};
+/* ----------------------------- types ----------------------------------- */
 
-export type PortalRequest = {
+export type QtyTier = { qty: number; ppu: number; total: number };
+
+export type PortalQuote = {
   id: string;
-  type: string; // quote | artwork | po | reorder | support
-  summary: string;
-  status: string; // pending | in_review | answered
+  quoteNum: string;
+  rev: string;
+  status: string;
+  statusLabel: string;
+  company: string;
+  attn: string;
+  jobDesc: string;
+  specs: string;
+  payTerms: string;
+  tiers: QtyTier[]; // resolved for the currently-selected SKU column
+  skuCount: number; // number of SKU variants available
+  // PO submission state (what the client has entered/locked in)
+  poNumber?: string;
+  poShipTo?: string;
+  poInstructions?: string;
+  poSignature?: string;
+  poSignedAt?: string;
+  poQtyIndex?: number;
+  poSkuCount?: number;
+  poSelectedQty?: number;
+  poSelectedTotal?: number;
+  poFiles: PortalFile[];
+  artFiles: PortalFile[];
   createdAt: string;
-  rerunMode?: "exact" | "changes";
+  updatedAt: string;
+  canSubmitPO: boolean; // status === 'sent'
 };
 
-export type PortalInvoice = {
+export type PortalFile = { name: string; url: string; uploadedAt?: string; uploadedBy?: string };
+
+export type PortalSalesOrder = {
   id: string;
-  invoiceNumber: string;
-  orderNumber?: string;
-  description: string;
-  amount: number; // in dollars
-  currency: string; // USD
-  status: string; // unpaid | processing | paid | overdue
+  soNum: string;
+  quoteId: string;
+  quoteNum: string;
+  status: string;
   statusLabel: string;
-  issuedAt: string;
-  dueAt?: string;
-  paidAt?: string;
+  jobDesc: string;
+  selectedQty: number;
+  ppu: number;
+  total: number;
+  poNumber?: string;
+  clientSignature?: string;
+  clientSignedAt?: string;
+  clientApproved?: boolean;
+  artworkApproved?: boolean;
+  artworkApprovedAt?: string;
+  artworkRevisionNote?: string;
+  signatureFlow?: string;
+  signingDocLink?: string;
+  artFiles: PortalFile[];
+  createdAt: string;
 };
 
 export type PortalMessage = {
   id: string;
-  sender: "client" | "team";
-  authorName: string;
-  body: string;
-  createdAt: string;
-  attachmentName?: string;
-  attachmentUrl?: string;
-};
-
-export type PortalDocument = {
-  id: string;
+  quoteId: string;
+  from: "client" | "staff" | "system";
   name: string;
-  category: string; // artwork | spec | po | contract | invoice | sample | other
-  url: string;
-  contentType?: string;
-  size?: number;
-  uploadedBy: "client" | "team";
+  text: string;
+  type?: string;
   createdAt: string;
 };
 
-export type PortalApproval = {
-  id: string;
+export type PipelineStage = { key: string; label: string };
+
+export type PortalJob = {
+  quoteId: string;
+  quoteNum: string;
   title: string;
-  type: string; // proof | quote | po | dieline
-  description: string;
-  url?: string;
-  status: string; // pending | approved | changes_requested
-  statusLabel: string;
+  stageIndex: number; // -1 .. stages.length-1
+  stageLabel: string;
+  soNum?: string;
+  updatedAt: string;
+};
+
+export type CustomerProfile = {
+  customerId?: string;
+  company: string;
+  industry: string;
+  contact: string;
+  phone: string;
+  email: string;
+  billTo: string;
+  shipTo: string;
+  notes: string;
+  found: boolean; // a CRM record (or quote-seeded values) exists
+};
+
+export type ProfileChange = {
+  id: string;
+  status: string; // pending | approved | rejected
+  changes: Record<string, { from: string; to: string }>;
   createdAt: string;
   decidedAt?: string;
-  decisionNotes?: string;
-};
-
-export type PortalNotification = {
-  id: string;
-  kind: string; // order | invoice | message | approval | request | system
-  title: string;
-  body?: string;
-  section?: string; // which dashboard section it points to
-  read: boolean;
-  createdAt: string;
 };
 
 export type PortalData = {
   email: string;
   name: string;
-  active: PortalOrder[];
-  history: PortalOrder[];
-  requests: PortalRequest[];
-  invoices: PortalInvoice[];
-  messages: PortalMessage[];
-  documents: PortalDocument[];
-  approvals: PortalApproval[];
-  notifications: PortalNotification[];
+  quotes: PortalQuote[];
+  salesOrders: PortalSalesOrder[];
+  messagesByQuote: Record<string, PortalMessage[]>;
+  jobs: PortalJob[];
+  stages: PipelineStage[];
+  profile: CustomerProfile;
+  profileChanges: ProfileChange[];
   badges: {
-    activeOrders: number;
-    pendingRequests: number;
-    unpaidInvoices: number;
-    pendingApprovals: number;
-    unreadNotifications: number;
+    quotesToReview: number; // quotes in 'sent' awaiting the client's PO
+    ordersToSign: number; // SOs awaiting signature
+    artworkToApprove: number; // SOs awaiting artwork approval
+    inProduction: number;
     unreadMessages: number;
+    profilePending: number; // pending CRM change requests
   };
 };
 
-const ACTIVE_STATUSES = new Set([
-  "pending",
-  "in_review",
-  "in_prepress",
-  "in_production",
-  "shipping",
-]);
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Pending",
-  in_review: "In Review",
-  in_prepress: "In Prepress",
-  in_production: "In Production",
-  shipping: "Shipping",
-  completed: "Completed",
+/** The CRM fields a client may propose changes to (whitelist).
+ *  Internal only — a "use server" module may export only async functions, so
+ *  the client UI keeps its own copy of this list. */
+const PROFILE_FIELDS = ["company", "industry", "contact", "phone", "billTo", "shipTo", "notes"] as const;
+type ProfileField = (typeof PROFILE_FIELDS)[number];
+const PROFILE_LABELS: Record<ProfileField, string> = {
+  company: "Company name",
+  industry: "Industry",
+  contact: "Primary contact",
+  phone: "Phone",
+  billTo: "Billing address",
+  shipTo: "Shipping address",
+  notes: "Notes / instructions",
 };
 
-const INVOICE_LABELS: Record<string, string> = {
-  unpaid: "Unpaid",
-  processing: "Payment Processing",
-  paid: "Paid",
-  overdue: "Overdue",
+/* ----------------------------- labels ----------------------------------- */
+
+const QUOTE_LABELS: Record<string, string> = {
+  draft: "Draft",
+  approval: "In Review",
+  ready: "Ready",
+  sent: "Action Needed — Review & Submit PO",
+  won: "PO Received",
+  lost: "Closed",
+  production: "In Production",
 };
 
-const APPROVAL_LABELS: Record<string, string> = {
-  pending: "Awaiting You",
+const SO_LABELS: Record<string, string> = {
+  pending: "Awaiting Approval",
   approved: "Approved",
-  changes_requested: "Changes Requested",
+  sent: "Awaiting Your Signature",
+  production: "In Production",
+  shipped: "Shipped",
+  delivered: "Delivered",
+  invoiced: "Invoiced",
+  fulfilled: "Fulfilled",
+  closed: "Closed",
+  rejected: "Closed",
+  cancelled: "Cancelled",
 };
 
-/* ========================================================================
-   Auth helper — verify the Firebase ID token sent from the client
-   ======================================================================== */
+const PIPELINE: PipelineStage[] = [
+  { key: "quote", label: "Quote Received" },
+  { key: "po", label: "PO Submitted" },
+  { key: "approved", label: "Order Approved" },
+  { key: "artwork", label: "Artwork Approved" },
+  { key: "production", label: "In Production" },
+  { key: "shipped", label: "Shipped / Complete" },
+];
+
+const SO_APPROVED = new Set(["approved", "sent", "production", "shipped", "delivered", "invoiced", "fulfilled", "closed"]);
+const SO_PRODUCTION = new Set(["production", "shipped", "delivered", "invoiced", "fulfilled", "closed"]);
+const SO_SHIPPED = new Set(["shipped", "delivered", "invoiced", "fulfilled", "closed"]);
+
+/* ----------------------------- helpers ---------------------------------- */
 
 async function verifyUser(idToken: string) {
   const decoded = await adminAuth.verifyIdToken(idToken);
   const email = decoded.email?.toLowerCase();
-  if (!email || !decoded.email_verified) {
-    throw new Error("UNVERIFIED_EMAIL");
-  }
+  if (!email || !decoded.email_verified) throw new Error("UNVERIFIED_EMAIL");
   return { uid: decoded.uid, email, name: decoded.name ?? email };
 }
 
 function toIso(v: unknown): string {
   if (v instanceof Timestamp) return v.toDate().toISOString();
   if (typeof v === "string") return v;
-  return new Date().toISOString();
+  if (typeof v === "number") return new Date(v).toISOString();
+  return "";
 }
 
-function tsMillis(v: unknown): number {
+function millis(v: unknown): number {
   if (v instanceof Timestamp) return v.toMillis();
-  if (typeof v === "string") {
-    const t = Date.parse(v);
-    return Number.isNaN(t) ? 0 : t;
-  }
+  if (typeof v === "string") { const t = Date.parse(v); return Number.isNaN(t) ? 0 : t; }
+  if (typeof v === "number") return v;
   return 0;
 }
 
-/** Fetch a client's docs in a collection, sorted newest-first in memory
- *  (avoids requiring composite Firestore indexes). */
-async function clientDocs(collection: string, email: string, limit = 100) {
-  const snap = await adminDb
-    .collection(collection)
-    .where("clientEmail", "==", email)
-    .limit(limit)
-    .get()
-    .catch(() => null);
-  if (!snap) return [];
-  return snap.docs
-    .map((d) => ({ id: d.id, data: d.data() }))
-    .sort((a, b) => tsMillis(b.data.createdAt) - tsMillis(a.data.createdAt));
+function nowIso() { return new Date().toISOString(); }
+
+function num(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
-/* ========================================================================
-   Read: full workspace data for the signed-in client
-   ======================================================================== */
+function mapFiles(arr: unknown): PortalFile[] {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((f) => f && typeof f === "object")
+    .map((f) => {
+      const o = f as Record<string, unknown>;
+      return {
+        name: String(o.name ?? "file"),
+        url: String(o.url ?? o.driveLink ?? ""),
+        uploadedAt: o.uploadedAt ? toIso(o.uploadedAt) : undefined,
+        uploadedBy: o.uploadedBy ? String(o.uploadedBy) : undefined,
+      };
+    })
+    .filter((f) => f.url);
+}
+
+/** Resolve the quantity tiers for a given SKU column from pricedQtys. */
+function resolveTiers(data: Record<string, unknown>, skuCol: number): QtyTier[] {
+  const priced = data.pricedQtys;
+  if (Array.isArray(priced)) {
+    return priced.map((r) => {
+      const row = r as Record<string, unknown>;
+      const skus = row.skus as Record<string, unknown>[] | undefined;
+      const sk = Array.isArray(skus) ? skus[skuCol] : undefined;
+      if (sk) return { qty: num(sk.qty ?? row.qty), ppu: num(sk.ppu), total: num(sk.total) };
+      return { qty: num(row.qty), ppu: num(row.ppu), total: num(row.total) };
+    });
+  }
+  // legacy: qtys array of numbers or objects
+  const qtys = data.qtys;
+  if (Array.isArray(qtys)) {
+    return qtys.map((q) => {
+      if (q && typeof q === "object") {
+        const o = q as Record<string, unknown>;
+        return { qty: num(o.qty), ppu: num(o.ppu), total: num(o.total) };
+      }
+      return { qty: num(q), ppu: 0, total: 0 };
+    });
+  }
+  return [];
+}
+
+function skuColumns(data: Record<string, unknown>): number {
+  const priced = data.pricedQtys as Record<string, unknown>[] | undefined;
+  if (Array.isArray(priced)) {
+    let max = 1;
+    for (const r of priced) {
+      const skus = (r as Record<string, unknown>).skus;
+      if (Array.isArray(skus)) max = Math.max(max, skus.length);
+    }
+    return max;
+  }
+  return 1;
+}
+
+function buildSpecs(f: Record<string, unknown>): string {
+  const s = (k: string) => {
+    const v = f[k];
+    return v == null ? "" : String(v);
+  };
+  const parts = [
+    s("sA") && s("sar") ? `${s("sA")}x${s("sar")}"` : "",
+    s("shapeType"),
+    s("colors") ? `${s("colors")}C` : "",
+    s("jobType"),
+    s("faceStock") || s("face"),
+    s("lamination") || s("laminate"),
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
+/* ------------------------- read: full workspace ------------------------- */
 
 export async function getPortalData(idToken: string): Promise<PortalData> {
   const user = await verifyUser(idToken);
   const email = user.email;
 
-  const [
-    orderDocs,
-    requestDocs,
-    invoiceDocs,
-    messageDocs,
-    documentDocs,
-    approvalDocs,
-    notificationDocs,
-  ] = await Promise.all([
-    clientDocs("orders", email, 100),
-    clientDocs("portal_requests", email, 50),
-    clientDocs("invoices", email, 50),
-    clientDocs("portal_messages", email, 100),
-    clientDocs("portal_documents", email, 100),
-    clientDocs("portal_approvals", email, 50),
-    clientDocs("portal_notifications", email, 50),
+  // Quotes: match on poClientEmail OR fields.custEmail (case-insensitive in the
+  // OS, but stored lowercased). Two queries merged by id.
+  const [byPoEmail, byCustEmail, soByEmail, custByEmail, changesByEmail] = await Promise.all([
+    adminDb.collection("quotes").where("poClientEmail", "==", email).limit(50).get().catch(() => null),
+    adminDb.collection("quotes").where("fields.custEmail", "==", email).limit(50).get().catch(() => null),
+    adminDb.collection("salesOrders").where("email", "==", email).limit(50).get().catch(() => null),
+    adminDb.collection("customers").where("email", "==", email).limit(1).get().catch(() => null),
+    adminDb.collection("portalProfileChanges").where("clientEmail", "==", email).limit(20).get().catch(() => null),
   ]);
 
-  const active: PortalOrder[] = [];
-  const history: PortalOrder[] = [];
+  const quoteDocs = new Map<string, Record<string, unknown>>();
+  [byPoEmail, byCustEmail].forEach((snap) => {
+    snap?.docs.forEach((d) => quoteDocs.set(d.id, d.data()));
+  });
 
-  orderDocs.forEach(({ id, data }) => {
-    const status = String(data.status ?? "pending");
-    const order: PortalOrder = {
+  const quotes: PortalQuote[] = [];
+  for (const [id, data] of quoteDocs) {
+    const f = (data.fields as Record<string, unknown>) ?? {};
+    const skuCount = skuColumns(data);
+    const selSku = Math.min(num(data.poSkuCount) || 0, Math.max(0, skuCount - 1));
+    const status = String(data.status ?? "sent");
+    quotes.push({
       id,
-      orderNumber: String(data.orderNumber ?? id.slice(0, 8).toUpperCase()),
-      title: String(data.title ?? data.packagingType ?? "Packaging Order"),
-      packagingType: String(data.packagingType ?? "—"),
-      quantity: String(data.quantity ?? "—"),
+      quoteNum: String(data.quoteNum ?? id.slice(0, 6).toUpperCase()),
+      rev: String(data.rev ?? ""),
       status,
-      statusLabel: STATUS_LABELS[status] ?? status,
+      statusLabel: QUOTE_LABELS[status] ?? status,
+      company: String(f.custCo ?? ""),
+      attn: String(f.custAttn ?? ""),
+      jobDesc: buildSpecs(f) || "Packaging Quote",
+      specs: buildSpecs(f),
+      payTerms: String(f.payTerms ?? "Net 30"),
+      tiers: resolveTiers(data, selSku),
+      skuCount,
+      poNumber: data.poNumber ? String(data.poNumber) : undefined,
+      poShipTo: data.poShipTo ? String(data.poShipTo) : undefined,
+      poInstructions: data.poInstructions ? String(data.poInstructions) : undefined,
+      poSignature: data.poSignature ? String(data.poSignature) : undefined,
+      poSignedAt: data.poSignedAt ? toIso(data.poSignedAt) : undefined,
+      poQtyIndex: data.poQtyIndex != null ? num(data.poQtyIndex) : undefined,
+      poSkuCount: data.poSkuCount != null ? num(data.poSkuCount) : undefined,
+      poSelectedQty: data.poSelectedQty != null ? num(data.poSelectedQty) : undefined,
+      poSelectedTotal: data.poSelectedTotal != null ? num(data.poSelectedTotal) : undefined,
+      poFiles: mapFiles(data.poFiles),
+      artFiles: mapFiles(data.artFiles),
       createdAt: toIso(data.createdAt),
       updatedAt: toIso(data.updatedAt ?? data.createdAt),
-      notes: data.clientNotes ? String(data.clientNotes) : undefined,
-      reorderable: status === "completed",
-    };
-    (ACTIVE_STATUSES.has(status) ? active : history).push(order);
-  });
+      canSubmitPO: status === "sent",
+    });
+  }
+  quotes.sort((a, b) => millis(b.updatedAt) - millis(a.updatedAt));
 
-  const requests: PortalRequest[] = requestDocs.map(({ id, data }) => ({
-    id,
-    type: String(data.type ?? "quote"),
-    summary: String(data.summary ?? "Request"),
-    status: String(data.status ?? "pending"),
-    createdAt: toIso(data.createdAt),
-    rerunMode: data.rerunMode as "exact" | "changes" | undefined,
-  }));
-
-  const invoices: PortalInvoice[] = invoiceDocs.map(({ id, data }) => {
-    const status = String(data.status ?? "unpaid");
-    return {
-      id,
-      invoiceNumber: String(data.invoiceNumber ?? id.slice(0, 8).toUpperCase()),
-      orderNumber: data.orderNumber ? String(data.orderNumber) : undefined,
-      description: String(data.description ?? "Invoice"),
-      amount: Number(data.amount ?? 0),
-      currency: String(data.currency ?? "USD"),
-      status,
-      statusLabel: INVOICE_LABELS[status] ?? status,
-      issuedAt: toIso(data.issuedAt ?? data.createdAt),
-      dueAt: data.dueAt ? toIso(data.dueAt) : undefined,
-      paidAt: data.paidAt ? toIso(data.paidAt) : undefined,
-    };
-  });
-
-  // messages: oldest-first for chat reading
-  const messages: PortalMessage[] = messageDocs
-    .map(({ id, data }) => ({
-      id,
-      sender: (data.sender === "team" ? "team" : "client") as "client" | "team",
-      authorName: String(data.authorName ?? (data.sender === "team" ? "Microflex Team" : "You")),
-      body: String(data.body ?? ""),
-      createdAt: toIso(data.createdAt),
-      attachmentName: data.attachmentName ? String(data.attachmentName) : undefined,
-      attachmentUrl: data.attachmentUrl ? String(data.attachmentUrl) : undefined,
-    }))
-    .reverse();
-
-  const documents: PortalDocument[] = documentDocs.map(({ id, data }) => ({
-    id,
-    name: String(data.name ?? "Document"),
-    category: String(data.category ?? "other"),
-    url: String(data.url ?? ""),
-    contentType: data.contentType ? String(data.contentType) : undefined,
-    size: data.size ? Number(data.size) : undefined,
-    uploadedBy: (data.uploadedBy === "client" ? "client" : "team") as "client" | "team",
-    createdAt: toIso(data.createdAt),
-  }));
-
-  const approvals: PortalApproval[] = approvalDocs.map(({ id, data }) => {
+  const salesOrders: PortalSalesOrder[] = (soByEmail?.docs ?? []).map((d) => {
+    const data = d.data();
     const status = String(data.status ?? "pending");
     return {
-      id,
-      title: String(data.title ?? "Approval"),
-      type: String(data.type ?? "proof"),
-      description: String(data.description ?? ""),
-      url: data.url ? String(data.url) : undefined,
+      id: d.id,
+      soNum: String(data.soNum ?? d.id),
+      quoteId: String(data.quoteId ?? ""),
+      quoteNum: String(data.quoteNum ?? ""),
       status,
-      statusLabel: APPROVAL_LABELS[status] ?? status,
+      statusLabel: SO_LABELS[status] ?? status,
+      jobDesc: String(data.jobDesc ?? "Order"),
+      selectedQty: num(data.selectedQty),
+      ppu: num(data.ppu),
+      total: num(data.total),
+      poNumber: data.poNumber ? String(data.poNumber) : undefined,
+      clientSignature: data.clientSignature ? String(data.clientSignature) : undefined,
+      clientSignedAt: data.clientSignedAt ? toIso(data.clientSignedAt) : undefined,
+      clientApproved: Boolean(data.clientApproved),
+      artworkApproved: Boolean(data.artworkApproved),
+      artworkApprovedAt: data.artworkApprovedAt ? toIso(data.artworkApprovedAt) : undefined,
+      artworkRevisionNote: data.artworkRevisionNote ? String(data.artworkRevisionNote) : undefined,
+      signatureFlow: data.signatureFlow ? String(data.signatureFlow) : undefined,
+      signingDocLink: data.signingDocLink ? String(data.signingDocLink) : undefined,
+      artFiles: mapFiles(data.artFiles),
       createdAt: toIso(data.createdAt),
-      decidedAt: data.decidedAt ? toIso(data.decidedAt) : undefined,
-      decisionNotes: data.decisionNotes ? String(data.decisionNotes) : undefined,
+    };
+  });
+  salesOrders.sort((a, b) => millis(b.createdAt) - millis(a.createdAt));
+
+  const soByQuote = new Map<string, PortalSalesOrder>();
+  salesOrders.forEach((so) => { if (so.quoteId) soByQuote.set(so.quoteId, so); });
+
+  // Per-quote messages (latest few each). Best-effort.
+  const messagesByQuote: Record<string, PortalMessage[]> = {};
+  await Promise.all(
+    quotes.slice(0, 20).map(async (q) => {
+      const snap = await adminDb
+        .collection("quotes").doc(q.id).collection("portalMessages")
+        .limit(100).get().catch(() => null);
+      if (!snap) return;
+      const msgs = snap.docs
+        .map((d) => {
+          const data = d.data();
+          const fromRaw = String(data.from ?? "staff");
+          const from: PortalMessage["from"] =
+            fromRaw === "client" ? "client" : fromRaw === "system" ? "system" : "staff";
+          return {
+            id: d.id,
+            quoteId: q.id,
+            from,
+            name: String(data.name ?? (from === "client" ? "You" : "Microflex")),
+            text: String(data.text ?? ""),
+            type: data.type ? String(data.type) : undefined,
+            createdAt: toIso(data.timestamp ?? data.createdAt),
+          };
+        })
+        .sort((a, b) => millis(a.createdAt) - millis(b.createdAt));
+      messagesByQuote[q.id] = msgs;
+    })
+  );
+
+  // Build the pipeline job per quote.
+  const jobs: PortalJob[] = quotes.map((q) => {
+    const so = soByQuote.get(q.id);
+    let idx = 0; // quote received
+    if (q.status === "won" || q.poNumber) idx = 1;
+    if (so && SO_APPROVED.has(so.status)) idx = 2;
+    if (so && so.artworkApproved) idx = Math.max(idx, 3);
+    if ((so && SO_PRODUCTION.has(so.status)) || q.status === "production") idx = Math.max(idx, 4);
+    if (so && SO_SHIPPED.has(so.status)) idx = 5;
+    return {
+      quoteId: q.id,
+      quoteNum: q.quoteNum,
+      title: q.company ? `${q.company} — ${q.jobDesc}` : q.jobDesc,
+      stageIndex: idx,
+      stageLabel: PIPELINE[idx].label,
+      soNum: so?.soNum,
+      updatedAt: q.updatedAt,
     };
   });
 
-  const notifications: PortalNotification[] = notificationDocs.map(({ id, data }) => ({
-    id,
-    kind: String(data.kind ?? "system"),
-    title: String(data.title ?? "Update"),
-    body: data.body ? String(data.body) : undefined,
-    section: data.section ? String(data.section) : undefined,
-    read: Boolean(data.read),
-    createdAt: toIso(data.createdAt),
-  }));
+  const unreadMessages = Object.values(messagesByQuote)
+    .flat()
+    .filter((m) => m.from !== "client").length; // best-effort (no read receipts on portalMessages)
 
-  const badges = {
-    activeOrders: active.length,
-    pendingRequests: requests.filter((r) => r.status !== "answered").length,
-    unpaidInvoices: invoices.filter((i) => i.status === "unpaid" || i.status === "overdue").length,
-    pendingApprovals: approvals.filter((a) => a.status === "pending").length,
-    unreadNotifications: notifications.filter((n) => !n.read).length,
-    unreadMessages: messageDocs.filter(
-      ({ data }) => data.sender === "team" && !data.readByClient
-    ).length,
+  // CRM profile — from the customers record if found, else seeded from the
+  // newest quote's fields so the client at least sees what we have on file.
+  const pstr = (...vals: unknown[]): string => {
+    for (const v of vals) if (v != null && String(v).trim()) return String(v);
+    return "";
   };
+  const custDoc = custByEmail?.docs[0];
+  const cust = custDoc?.data();
+  const seed = (quotes[0] && (quoteDocs.get(quotes[0].id)?.fields as Record<string, unknown> | undefined)) || undefined;
+  const profile: CustomerProfile = cust
+    ? {
+        customerId: custDoc!.id,
+        company: pstr(cust.company),
+        industry: pstr(cust.industry),
+        contact: pstr(cust.contact),
+        phone: pstr(cust.phone),
+        email,
+        billTo: pstr(cust.billTo, cust.billToAddress),
+        shipTo: pstr(cust.shipTo),
+        notes: pstr(cust.notes),
+        found: true,
+      }
+    : {
+        company: pstr(seed?.custCo),
+        industry: pstr(seed?.industry),
+        contact: pstr(seed?.custAttn),
+        phone: pstr(seed?.custPhone),
+        email,
+        billTo: pstr(seed?.billTo),
+        shipTo: pstr(seed?.shipTo, seed?.cityState),
+        notes: "",
+        found: Boolean(seed),
+      };
+
+  const profileChanges: ProfileChange[] = (changesByEmail?.docs ?? [])
+    .map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        status: String(data.status ?? "pending"),
+        changes: (data.changes ?? {}) as Record<string, { from: string; to: string }>,
+        createdAt: toIso(data.createdAt),
+        decidedAt: data.decidedAt ? toIso(data.decidedAt) : undefined,
+      };
+    })
+    .sort((a, b) => millis(b.createdAt) - millis(a.createdAt));
 
   return {
     email,
     name: user.name,
-    active,
-    history,
-    requests,
-    invoices,
-    messages,
-    documents,
-    approvals,
-    notifications,
-    badges,
+    quotes,
+    salesOrders,
+    messagesByQuote,
+    jobs,
+    stages: PIPELINE,
+    profile,
+    profileChanges,
+    badges: {
+      quotesToReview: quotes.filter((q) => q.status === "sent").length,
+      ordersToSign: salesOrders.filter((so) => so.status === "sent" && !so.clientSignature).length,
+      artworkToApprove: salesOrders.filter((so) => SO_APPROVED.has(so.status) && !so.artworkApproved && so.artFiles.length > 0).length,
+      inProduction: salesOrders.filter((so) => SO_PRODUCTION.has(so.status)).length,
+      unreadMessages,
+      profilePending: profileChanges.filter((c) => c.status === "pending").length,
+    },
   };
 }
 
-/* ========================================================================
-   Write: new request from the portal form
-   ======================================================================== */
+/* --------------------- write: record uploaded files --------------------- */
 
-export async function submitPortalRequest(
+export async function recordQuoteFiles(
   idToken: string,
+  quoteId: string,
+  kind: "po" | "art",
+  files: PortalFile[]
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await verifyUser(idToken);
+  if (!files.length) return { ok: false, error: "No files." };
+
+  const ref = adminDb.collection("quotes").doc(quoteId);
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: false, error: "Quote not found." };
+  const q = snap.data()!;
+  if (!emailMatchesQuote(q, user.email)) return { ok: false, error: "Not authorized for this quote." };
+
+  const field = kind === "po" ? "poFiles" : "artFiles";
+  const stamped = files.map((f) => ({ ...f, uploadedAt: nowIso(), uploadedBy: user.email }));
+  await ref.update({ [field]: FieldValue.arrayUnion(...stamped), updatedAt: nowIso() });
+
+  await ref.collection("portalMessages").add({
+    text: `📎 ${files.length} ${kind === "po" ? "PO" : "artwork"} file(s) uploaded: ${files.map((f) => f.name).join(", ")}`,
+    name: user.name,
+    from: "client",
+    type: "folder_drop",
+    folderKind: kind === "po" ? "PO" : "Art",
+    fileCount: files.length,
+    fileNames: files.map((f) => f.name),
+    timestamp: FieldValue.serverTimestamp(),
+  });
+
+  return { ok: true };
+}
+
+function emailMatchesQuote(q: Record<string, unknown>, email: string): boolean {
+  const a = String(q.poClientEmail ?? "").toLowerCase();
+  const b = String((q.fields as Record<string, unknown>)?.custEmail ?? "").toLowerCase();
+  return a === email || b === email;
+}
+
+/* ----------------- write: submit PO (quote → won + SO) ------------------ */
+
+export async function submitPO(
+  idToken: string,
+  quoteId: string,
   input: {
-    type: string;
-    packagingType: string;
-    quantity: string;
-    timeline: string;
-    skus: string;
-    message: string;
+    poNumber: string;
+    poShipTo: string;
+    poInstructions: string;
+    poSignature: string;
+    poQtyIndex: number;
+    poSkuCount: number;
   }
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; error?: string; soNum?: string }> {
   const user = await verifyUser(idToken);
 
-  const summaryParts = [input.type, input.packagingType, input.quantity].filter(
-    (s) => s && s !== "—"
-  );
-
-  await adminDb.collection("portal_requests").add({
-    clientEmail: user.email,
-    clientName: user.name,
-    clientUid: user.uid,
-    source: "portal",
-    type: input.type,
-    packagingType: input.packagingType,
-    quantity: input.quantity,
-    timeline: input.timeline,
-    skus: input.skus,
-    message: input.message,
-    summary: summaryParts.join(" · ") || "Portal request",
-    status: "pending",
-    createdAt: FieldValue.serverTimestamp(),
-  });
-
-  await notifyTeam(
-    `Portal request — ${input.type}`,
-    [
-      `Client: ${user.name} <${user.email}>`,
-      `Request type: ${input.type}`,
-      `Packaging type: ${input.packagingType}`,
-      `Quantity: ${input.quantity}`,
-      `Timeline: ${input.timeline}`,
-      `SKUs: ${input.skus || "—"}`,
-      ``,
-      `Message:`,
-      input.message || "—",
-    ].join("\n")
-  );
-
-  return { ok: true };
-}
-
-/* ========================================================================
-   Write: one-click reorder (rerun exact / rerun with changes)
-   ======================================================================== */
-
-export async function reorderOrder(
-  idToken: string,
-  orderId: string,
-  mode: "exact" | "changes",
-  changeNotes?: string
-): Promise<{ ok: boolean; error?: string }> {
-  const user = await verifyUser(idToken);
-
-  const orderRef = adminDb.collection("orders").doc(orderId);
-  const orderSnap = await orderRef.get();
-  if (!orderSnap.exists) return { ok: false, error: "Order not found." };
-
-  const order = orderSnap.data()!;
-  if (String(order.clientEmail ?? "").toLowerCase() !== user.email) {
-    return { ok: false, error: "Order not found." };
+  if (!input.poNumber.trim() || !input.poSignature.trim()) {
+    return { ok: false, error: "PO number and signature are required." };
   }
 
-  const orderNumber = String(order.orderNumber ?? orderId.slice(0, 8).toUpperCase());
-
-  await adminDb.collection("portal_requests").add({
-    clientEmail: user.email,
-    clientName: user.name,
-    clientUid: user.uid,
-    source: "portal",
-    type: "reorder",
-    rerunMode: mode,
-    sourceOrderId: orderId,
-    sourceOrderNumber: orderNumber,
-    packagingType: order.packagingType ?? "—",
-    quantity: order.quantity ?? "—",
-    changeNotes: mode === "changes" ? (changeNotes ?? "") : "",
-    summary:
-      mode === "exact"
-        ? `Rerun ${orderNumber} — no changes`
-        : `Rerun ${orderNumber} — with changes`,
-    status: "pending",
-    createdAt: FieldValue.serverTimestamp(),
-  });
-
-  await notifyTeam(
-    `Portal reorder — ${orderNumber} (${mode === "exact" ? "no changes" : "WITH CHANGES"})`,
-    [
-      `Client: ${user.name} <${user.email}>`,
-      `Source order: ${orderNumber} (${orderId})`,
-      `Packaging type: ${order.packagingType ?? "—"}`,
-      `Quantity: ${order.quantity ?? "—"}`,
-      `Mode: ${mode === "exact" ? "Rerun exactly as before" : "Rerun with changes"}`,
-      ``,
-      mode === "changes" ? `Requested changes:\n${changeNotes || "—"}` : "",
-    ].join("\n")
-  );
-
-  return { ok: true };
-}
-
-/* ========================================================================
-   Write: send a message to the team
-   ======================================================================== */
-
-export async function sendPortalMessage(
-  idToken: string,
-  body: string,
-  attachment?: { name: string; url: string }
-): Promise<{ ok: boolean; error?: string }> {
-  const user = await verifyUser(idToken);
-  const text = body.trim();
-  if (!text && !attachment) return { ok: false, error: "Empty message." };
-
-  await adminDb.collection("portal_messages").add({
-    clientEmail: user.email,
-    clientName: user.name,
-    clientUid: user.uid,
-    sender: "client",
-    authorName: user.name,
-    body: text,
-    attachmentName: attachment?.name ?? null,
-    attachmentUrl: attachment?.url ?? null,
-    readByClient: true,
-    readByTeam: false,
-    createdAt: FieldValue.serverTimestamp(),
-  });
-
-  await notifyTeam(
-    `Portal message from ${user.name}`,
-    [
-      `Client: ${user.name} <${user.email}>`,
-      ``,
-      text || "(no text)",
-      attachment ? `\nAttachment: ${attachment.name}\n${attachment.url}` : "",
-    ].join("\n")
-  );
-
-  return { ok: true };
-}
-
-/* ========================================================================
-   Write: submit a payment intent against an invoice ("mark as paid")
-   ======================================================================== */
-
-export async function submitInvoicePayment(
-  idToken: string,
-  invoiceId: string,
-  input: { method: string; reference: string; note: string; proof?: { name: string; url: string } }
-): Promise<{ ok: boolean; error?: string }> {
-  const user = await verifyUser(idToken);
-
-  const ref = adminDb.collection("invoices").doc(invoiceId);
+  const ref = adminDb.collection("quotes").doc(quoteId);
   const snap = await ref.get();
-  if (!snap.exists) return { ok: false, error: "Invoice not found." };
-  const inv = snap.data()!;
-  if (String(inv.clientEmail ?? "").toLowerCase() !== user.email) {
-    return { ok: false, error: "Invoice not found." };
+  if (!snap.exists) return { ok: false, error: "Quote not found." };
+  const quote = snap.data()!;
+  if (!emailMatchesQuote(quote, user.email)) return { ok: false, error: "Not authorized for this quote." };
+  if (quote.status !== "sent") {
+    return { ok: false, error: `This quote is already ${quote.status}.` };
   }
 
-  const invoiceNumber = String(inv.invoiceNumber ?? invoiceId.slice(0, 8).toUpperCase());
+  // Resolve selected pricing (mirror portalSubmitPO).
+  const selIdx = input.poQtyIndex || 0;
+  const skuCol = Math.max(0, input.poSkuCount || 0);
+  const tiers = resolveTiers(quote, skuCol);
+  const sel = tiers[selIdx] ?? { qty: 0, ppu: 0, total: 0 };
 
-  // Flip the invoice to "processing" so the client sees it move immediately.
+  // Lock the PO onto the quote and flip to 'won'.
   await ref.update({
-    status: "processing",
-    paymentSubmittedAt: FieldValue.serverTimestamp(),
-    paymentMethod: input.method,
-    paymentReference: input.reference,
+    poNumber: input.poNumber.trim(),
+    poShipTo: input.poShipTo.trim(),
+    poInstructions: input.poInstructions.trim(),
+    poSignature: input.poSignature.trim(),
+    poSignedAt: nowIso(),
+    poClientEmail: user.email,
+    poQtyIndex: selIdx,
+    poSkuCount: skuCol,
+    poSelectedQty: sel.qty,
+    poSelectedTotal: sel.total,
+    status: "won",
+    wonDate: nowIso(),
+    closedAt: nowIso(),
+    updatedAt: nowIso(),
   });
 
-  await adminDb.collection("payment_submissions").add({
-    clientEmail: user.email,
-    clientName: user.name,
-    clientUid: user.uid,
-    invoiceId,
-    invoiceNumber,
-    amount: inv.amount ?? 0,
-    currency: inv.currency ?? "USD",
-    method: input.method,
-    reference: input.reference,
-    note: input.note,
-    proofName: input.proof?.name ?? null,
-    proofUrl: input.proof?.url ?? null,
-    status: "submitted",
-    createdAt: FieldValue.serverTimestamp(),
-  });
+  // Auto-create the salesOrder if one doesn't already exist (mirror OS).
+  let soNum: string | undefined;
+  const existing = await adminDb.collection("salesOrders").where("quoteId", "==", quoteId).limit(1).get();
+  if (existing.empty) {
+    soNum = await adminDb.runTransaction(async (tx) => {
+      const seqRef = adminDb.collection("systemCounters").doc("salesOrder");
+      const seqSnap = await tx.get(seqRef);
+      const now = new Date();
+      const bucket = String(now.getFullYear()).slice(-2) + String(now.getMonth() + 1).padStart(2, "0");
+      let seq = 1;
+      const sd = seqSnap.data();
+      if (seqSnap.exists && sd && sd.bucket === bucket) seq = (Number(sd.seq) || 0) + 1;
+      tx.set(seqRef, { bucket, seq }, { merge: true });
+      const generated = `SO${bucket}-${String(seq).padStart(3, "0")}`;
 
-  await adminDb.collection("portal_notifications").add({
-    clientEmail: user.email,
-    kind: "invoice",
-    title: `Payment submitted for ${invoiceNumber}`,
-    body: "We received your payment details and are confirming receipt.",
-    section: "invoices",
-    read: false,
-    createdAt: FieldValue.serverTimestamp(),
-  });
-
-  await notifyTeam(
-    `Portal payment submitted — ${invoiceNumber}`,
-    [
-      `Client: ${user.name} <${user.email}>`,
-      `Invoice: ${invoiceNumber}`,
-      `Amount: ${inv.currency ?? "USD"} ${Number(inv.amount ?? 0).toFixed(2)}`,
-      `Method: ${input.method}`,
-      `Reference: ${input.reference || "—"}`,
-      `Note: ${input.note || "—"}`,
-      input.proof ? `\nProof: ${input.proof.name}\n${input.proof.url}` : "",
-      ``,
-      `>> Verify funds, then mark the invoice "paid" in the admin tool.`,
-    ].join("\n")
-  );
-
-  return { ok: true };
-}
-
-/* ========================================================================
-   Write: act on an approval (approve / request changes)
-   ======================================================================== */
-
-export async function actOnApproval(
-  idToken: string,
-  approvalId: string,
-  decision: "approved" | "changes_requested",
-  notes?: string
-): Promise<{ ok: boolean; error?: string }> {
-  const user = await verifyUser(idToken);
-
-  const ref = adminDb.collection("portal_approvals").doc(approvalId);
-  const snap = await ref.get();
-  if (!snap.exists) return { ok: false, error: "Item not found." };
-  const a = snap.data()!;
-  if (String(a.clientEmail ?? "").toLowerCase() !== user.email) {
-    return { ok: false, error: "Item not found." };
-  }
-  if (decision === "changes_requested" && !notes?.trim()) {
-    return { ok: false, error: "Please describe the changes needed." };
-  }
-
-  await ref.update({
-    status: decision,
-    decidedAt: FieldValue.serverTimestamp(),
-    decisionNotes: notes?.trim() ?? "",
-  });
-
-  const title = String(a.title ?? "item");
-  await notifyTeam(
-    `Portal approval — ${title} (${decision === "approved" ? "APPROVED" : "CHANGES REQUESTED"})`,
-    [
-      `Client: ${user.name} <${user.email}>`,
-      `Item: ${title}`,
-      `Decision: ${decision === "approved" ? "Approved" : "Changes requested"}`,
-      notes?.trim() ? `\nNotes:\n${notes.trim()}` : "",
-    ].join("\n")
-  );
-
-  return { ok: true };
-}
-
-/* ========================================================================
-   Write: record a client-uploaded document (file lives in Storage already)
-   ======================================================================== */
-
-export async function recordPortalDocument(
-  idToken: string,
-  input: { name: string; url: string; category: string; contentType?: string; size?: number }
-): Promise<{ ok: boolean; error?: string }> {
-  const user = await verifyUser(idToken);
-  if (!input.url || !input.name) return { ok: false, error: "Missing file." };
-
-  await adminDb.collection("portal_documents").add({
-    clientEmail: user.email,
-    clientName: user.name,
-    clientUid: user.uid,
-    name: input.name,
-    category: input.category || "other",
-    url: input.url,
-    contentType: input.contentType ?? null,
-    size: input.size ?? null,
-    uploadedBy: "client",
-    createdAt: FieldValue.serverTimestamp(),
-  });
-
-  await notifyTeam(
-    `Portal document uploaded — ${input.name}`,
-    [
-      `Client: ${user.name} <${user.email}>`,
-      `File: ${input.name} (${input.category || "other"})`,
-      input.url,
-    ].join("\n")
-  );
-
-  return { ok: true };
-}
-
-/* ========================================================================
-   Write: mark notifications read
-   ======================================================================== */
-
-export async function markNotificationsRead(
-  idToken: string,
-  ids?: string[]
-): Promise<{ ok: boolean }> {
-  const user = await verifyUser(idToken);
-
-  let docs: { id: string }[] = [];
-  if (ids && ids.length) {
-    docs = ids.map((id) => ({ id }));
+      const f = quote.fields ?? {};
+      const allQtys = tiers;
+      const soId = `so_${Date.now()}`;
+      tx.set(adminDb.collection("salesOrders").doc(soId), {
+        id: soId,
+        soNum: generated,
+        quoteId,
+        quoteNum: quote.quoteNum ?? "",
+        quoteRev: quote.rev ?? "",
+        status: "pending",
+        company: f.custCo ?? "",
+        contact: f.custAttn ?? "",
+        email: user.email,
+        phone: f.custPhone ?? f.phone ?? "",
+        industry: f.industry ?? "",
+        cityState: f.cityState ?? "",
+        shipTo: input.poShipTo.trim() || (f.shipTo as string) || (f.cityState as string) || "",
+        billToAddress: f.billTo ?? "",
+        poNumber: input.poNumber.trim(),
+        poSignature: input.poSignature.trim(),
+        poSignedAt: nowIso(),
+        poInstructions: input.poInstructions.trim(),
+        poFiles: quote.poFiles ?? [],
+        artFiles: quote.artFiles ?? [],
+        jobDesc: `${f.sA ?? "?"}x${f.sar ?? "?"}" ${f.shapeType ?? ""} - ${f.colors ?? "?"}C ${f.jobType ?? "Flexo"}`,
+        sizeA: f.sA ?? "",
+        sizeB: f.sar ?? "",
+        shapeType: f.shapeType ?? "",
+        colors: f.colors ?? "",
+        jobType: f.jobType ?? "",
+        faceStock: f.faceStock ?? f.face ?? "",
+        lamination: f.lamination ?? f.laminate ?? "",
+        face: f.face ?? f.faceStock ?? "",
+        laminate: f.laminate ?? f.lamination ?? "",
+        coating: f.coating ?? "",
+        windDir: f.windDir ?? f.copyPos ?? "",
+        selectedQtyIndex: selIdx,
+        selectedQty: sel.qty,
+        ppu: sel.ppu,
+        total: sel.total,
+        allQtys,
+        terms: quote.terms ?? [],
+        estimator: f.estimator ?? "",
+        salesRep: f.salesRep ?? "",
+        payTerms: f.payTerms ?? "Net 30",
+        createdAt: nowIso(),
+        createdBy: "System (Auto — Portal PO)",
+        updatedAt: nowIso(),
+        updatedBy: "System (Auto — Portal PO)",
+        approvedBy: null,
+        approvedAt: null,
+        sentAt: null,
+        sentTo: null,
+        driveLink: null,
+        notes: [{
+          text: `📋 Auto-created from ${quote.quoteNum ?? quoteId} (PO# ${input.poNumber.trim()} submitted via Client Portal)`,
+          by: "System", at: nowIso(),
+        }],
+      });
+      return generated;
+    });
   } else {
-    const snap = await adminDb
-      .collection("portal_notifications")
-      .where("clientEmail", "==", user.email)
-      .where("read", "==", false)
-      .limit(100)
-      .get()
-      .catch(() => null);
-    docs = snap ? snap.docs.map((d) => ({ id: d.id })) : [];
+    soNum = String(existing.docs[0].data().soNum ?? "");
   }
 
-  if (!docs.length) return { ok: true };
-
-  const batch = adminDb.batch();
-  docs.forEach(({ id }) => {
-    batch.update(adminDb.collection("portal_notifications").doc(id), { read: true });
+  await ref.collection("portalMessages").add({
+    text: `✅ PO #${input.poNumber.trim()} submitted. Selected ${sel.qty.toLocaleString()} units. Thank you!`,
+    name: user.name, from: "client", type: "po_submitted",
+    timestamp: FieldValue.serverTimestamp(),
   });
-  await batch.commit().catch(() => null);
+
+  await notifyTeam(
+    `Portal PO submitted — ${quote.quoteNum ?? quoteId}`,
+    [
+      `Client: ${user.name} <${user.email}>`,
+      `Quote: ${quote.quoteNum ?? quoteId}`,
+      `PO #: ${input.poNumber.trim()}`,
+      `Selected: ${sel.qty.toLocaleString()} units · $${sel.total.toLocaleString()}`,
+      soNum ? `Sales Order created: ${soNum} (pending approval)` : "",
+      `Ship to: ${input.poShipTo.trim() || "—"}`,
+      `Instructions: ${input.poInstructions.trim() || "—"}`,
+    ].join("\n")
+  );
+
+  return { ok: true, soNum };
+}
+
+/* ------------- write: sign sales order + approve artwork ---------------- */
+
+export async function signSalesOrder(
+  idToken: string,
+  soId: string,
+  signature: string
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await verifyUser(idToken);
+  if (!signature.trim()) return { ok: false, error: "Signature required." };
+
+  const ref = adminDb.collection("salesOrders").doc(soId);
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: false, error: "Order not found." };
+  const so = snap.data()!;
+  if (String(so.email ?? "").toLowerCase() !== user.email) return { ok: false, error: "Not authorized." };
+
+  await ref.update({
+    clientSignature: signature.trim(),
+    clientSignedAt: nowIso(),
+    clientEmail: user.email,
+    clientApproved: true,
+    signatureFlow: "awaiting_csr",
+    updatedAt: nowIso(),
+  });
+
+  await notifyTeam(
+    `Portal SO signed — ${so.soNum ?? soId}`,
+    [`Client: ${user.name} <${user.email}>`, `Order: ${so.soNum ?? soId}`, `Signature: ${signature.trim()}`].join("\n")
+  );
+  return { ok: true };
+}
+
+export async function decideArtwork(
+  idToken: string,
+  soId: string,
+  decision: "approve" | "revise",
+  note?: string
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await verifyUser(idToken);
+  if (decision === "revise" && !note?.trim()) return { ok: false, error: "Please describe the changes needed." };
+
+  const ref = adminDb.collection("salesOrders").doc(soId);
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: false, error: "Order not found." };
+  const so = snap.data()!;
+  if (String(so.email ?? "").toLowerCase() !== user.email) return { ok: false, error: "Not authorized." };
+
+  if (decision === "approve") {
+    await ref.update({
+      artworkApproved: true,
+      artworkApprovedAt: nowIso(),
+      artworkApprovedBy: user.name,
+      updatedAt: nowIso(),
+    });
+  } else {
+    await ref.update({
+      artworkApproved: false,
+      artworkRevisionRequestedAt: nowIso(),
+      artworkRevisionNote: note?.trim() ?? "",
+      artworkRevisionRequestedBy: user.name,
+      updatedAt: nowIso(),
+    });
+  }
+
+  await notifyTeam(
+    `Portal artwork ${decision === "approve" ? "APPROVED" : "CHANGES REQUESTED"} — ${so.soNum ?? soId}`,
+    [
+      `Client: ${user.name} <${user.email}>`,
+      `Order: ${so.soNum ?? soId}`,
+      decision === "revise" ? `\nRequested changes:\n${note?.trim()}` : "Approved for production.",
+    ].join("\n")
+  );
+  return { ok: true };
+}
+
+/* ----------------------- write: quote message --------------------------- */
+
+export async function sendQuoteMessage(
+  idToken: string,
+  quoteId: string,
+  text: string
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await verifyUser(idToken);
+  if (!text.trim()) return { ok: false, error: "Empty message." };
+
+  const ref = adminDb.collection("quotes").doc(quoteId);
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: false, error: "Quote not found." };
+  if (!emailMatchesQuote(snap.data()!, user.email)) return { ok: false, error: "Not authorized." };
+
+  await ref.collection("portalMessages").add({
+    text: text.trim(), name: user.name, from: "client", type: "message",
+    timestamp: FieldValue.serverTimestamp(),
+  });
+
+  await notifyTeam(
+    `Portal message — ${snap.data()!.quoteNum ?? quoteId}`,
+    [`Client: ${user.name} <${user.email}>`, ``, text.trim()].join("\n")
+  );
+  return { ok: true };
+}
+
+/* ----------------- write: CRM profile change request -------------------- */
+
+export async function submitProfileChange(
+  idToken: string,
+  proposed: Partial<Record<ProfileField, string>>
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await verifyUser(idToken);
+
+  const custSnap = await adminDb
+    .collection("customers").where("email", "==", user.email).limit(1).get()
+    .catch(() => null);
+  const custDoc = custSnap?.docs[0];
+  const cur = (custDoc?.data() ?? {}) as Record<string, unknown>;
+  const currentVal = (k: ProfileField): string => {
+    if (k === "billTo") return String(cur.billTo ?? cur.billToAddress ?? "");
+    return String(cur[k] ?? "");
+  };
+
+  const changes: Record<string, { from: string; to: string }> = {};
+  for (const k of PROFILE_FIELDS) {
+    const next = proposed[k];
+    if (next == null) continue;
+    const to = String(next).trim();
+    const from = currentVal(k).trim();
+    if (to !== from) changes[k] = { from, to };
+  }
+  if (Object.keys(changes).length === 0) return { ok: false, error: "No changes to submit." };
+
+  await adminDb.collection("portalProfileChanges").add({
+    clientEmail: user.email,
+    clientName: user.name,
+    customerId: custDoc?.id ?? null,
+    changes,
+    status: "pending",
+    source: "portal",
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  await notifyTeam(
+    `Portal profile change request — ${user.name}`,
+    [
+      `Client: ${user.name} <${user.email}>`,
+      custDoc ? `Customer record: ${custDoc.id}` : "No linked customer record yet (review & link).",
+      ``,
+      `Requested changes (review before applying to CRM):`,
+      ...Object.entries(changes).map(([k, v]) => `• ${PROFILE_LABELS[k as ProfileField]}: "${v.from || "—"}" → "${v.to || "—"}"`),
+    ].join("\n")
+  );
 
   return { ok: true };
 }
 
-/* ========================================================================
-   Email notification (best-effort, mirrors inquiry notifications)
-   ======================================================================== */
+/* ----------------------- email notification ----------------------------- */
 
 async function notifyTeam(subject: string, text: string) {
   try {
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASSWORD;
     if (!smtpUser || !smtpPass) return;
-
-    const recipients =
-      process.env.INQUIRY_NOTIFY_EMAIL ??
-      "randy@microflexfilm.com,info@microflexfilm.com";
-
+    const recipients = process.env.INQUIRY_NOTIFY_EMAIL ?? "randy@microflexfilm.com,info@microflexfilm.com";
     const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
+      host: "smtp.gmail.com", port: 465, secure: true,
       auth: { user: smtpUser, pass: smtpPass },
     });
-
     await transporter.sendMail({
       from: `"${process.env.INQUIRY_FROM_NAME ?? "Microflex Portal"}" <${smtpUser}>`,
       to: recipients,

@@ -1,19 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { User } from "firebase/auth";
 import {
-  submitPortalRequest,
-  reorderOrder,
-  sendPortalMessage,
-  submitInvoicePayment,
-  actOnApproval,
-  recordPortalDocument,
-  markNotificationsRead,
+  submitPO,
+  signSalesOrder,
+  decideArtwork,
+  sendQuoteMessage,
+  recordQuoteFiles,
+  submitProfileChange,
   type PortalData,
-  type PortalOrder,
-  type PortalInvoice,
-  type PortalApproval,
+  type PortalQuote,
+  type PortalSalesOrder,
+  type PortalFile,
 } from "@/app/actions/portal";
 import {
   StatusChip,
@@ -25,65 +24,27 @@ import {
   fmtDate,
   fmtDateTime,
   fmtMoney,
-  fmtBytes,
   timeAgo,
 } from "./ui";
 import { uploadPortalFile, isStorageConfigured } from "./upload";
 
-export type SectionKey =
-  | "overview"
-  | "orders"
-  | "invoices"
-  | "requests"
-  | "messages"
-  | "documents"
-  | "approvals"
-  | "notifications"
-  | "history";
+export type SectionKey = "overview" | "quotes" | "orders" | "status" | "messages" | "documents" | "account";
 
 const dim = (on: boolean) => (on ? { opacity: 0.55 } : undefined);
 
-/* ============ order row (shared) ============ */
-
-function OrderRow({ order, children }: { order: PortalOrder; children?: React.ReactNode }) {
-  return (
-    <div
-      className="rounded-2xl p-5"
-      style={{ border: "1px solid rgba(0,216,242,0.18)", background: "rgba(255,255,255,0.035)" }}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="font-mono text-xs font-bold text-cyan">#{order.orderNumber}</span>
-            <span className="text-base font-bold text-paper">{order.title}</span>
-          </div>
-          <p className="mt-1 text-xs text-muted">
-            {order.packagingType} · Qty {order.quantity} · Updated {fmtDate(order.updatedAt)}
-          </p>
-        </div>
-        <StatusChip status={order.status} label={order.statusLabel} />
-      </div>
-      {children}
-    </div>
-  );
-}
-
-/* ============ OVERVIEW ============ */
+/* ============================ OVERVIEW ============================ */
 
 export function Overview({ data, go }: { data: PortalData; go: (s: SectionKey) => void }) {
   const b = data.badges;
-  const cards: { label: string; value: number; tone: string; to: SectionKey }[] = [
-    { label: "Active Orders", value: b.activeOrders, tone: "#34e3f5", to: "orders" },
-    { label: "Open Requests", value: b.pendingRequests, tone: "#ffd34d", to: "requests" },
-    { label: "Unpaid Invoices", value: b.unpaidInvoices, tone: "#ff9d9d", to: "invoices" },
-    { label: "Approvals Waiting", value: b.pendingApprovals, tone: "#34e3f5", to: "approvals" },
+  const cards = [
+    { label: "Quotes to Review", value: b.quotesToReview, tone: "#ffd34d", to: "quotes" as SectionKey },
+    { label: "Orders to Sign", value: b.ordersToSign + b.artworkToApprove, tone: "#34e3f5", to: "orders" as SectionKey },
+    { label: "In Production", value: b.inProduction, tone: "#7dffb0", to: "status" as SectionKey },
+    { label: "Active Jobs", value: data.jobs.length, tone: "#34e3f5", to: "status" as SectionKey },
   ];
-
-  const recent = data.notifications.slice(0, 5);
 
   return (
     <div className="grid gap-8">
-      {/* KPI cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => (
           <button
@@ -93,135 +54,39 @@ export function Overview({ data, go }: { data: PortalData; go: (s: SectionKey) =
             className="rounded-2xl p-5 text-left transition hover:-translate-y-1"
             style={{ border: `1px solid ${c.tone}33`, background: "rgba(255,255,255,0.035)" }}
           >
-            <div className="text-4xl font-black" style={{ color: c.tone }}>
-              {c.value}
-            </div>
-            <div className="mt-1 text-xs font-extrabold uppercase tracking-widest text-muted">
-              {c.label}
-            </div>
+            <div className="text-4xl font-black" style={{ color: c.tone }}>{c.value}</div>
+            <div className="mt-1 text-xs font-extrabold uppercase tracking-widest text-muted">{c.label}</div>
           </button>
         ))}
       </div>
 
-      {/* Quick actions */}
+      {/* Action items */}
       <div>
-        <SectionHeading title="Quick Actions" />
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => go("requests")} className="btn btn-primary">
-            + New Request
-          </button>
-          <button type="button" onClick={() => go("history")} className="btn btn-secondary">
-            ⟳ Reorder
-          </button>
-          <button type="button" onClick={() => go("invoices")} className="btn btn-secondary">
-            💳 Pay an Invoice
-          </button>
-          <button type="button" onClick={() => go("messages")} className="btn btn-secondary">
-            💬 Message Team
-          </button>
-          <button type="button" onClick={() => go("documents")} className="btn btn-secondary">
-            📁 Upload File
-          </button>
-        </div>
+        <SectionHeading title="Needs Your Attention" />
+        <ActionItems data={data} go={go} />
       </div>
 
-      {/* Active orders preview */}
+      {/* Pipeline snapshot */}
       <div>
         <SectionHeading
-          title="Current Orders"
-          action={
-            data.active.length > 0 ? (
-              <button type="button" onClick={() => go("orders")} className="text-sm font-bold text-cyan underline">
-                View all →
-              </button>
-            ) : undefined
-          }
+          title="Your Jobs"
+          action={data.jobs.length > 0 ? (
+            <button type="button" onClick={() => go("status")} className="text-sm font-bold text-cyan underline">
+              Full status →
+            </button>
+          ) : undefined}
         />
-        {data.active.length === 0 ? (
-          <EmptyState>
-            No active orders right now.{" "}
-            <button type="button" onClick={() => go("requests")} className="font-bold text-cyan underline">
-              Start a new request →
-            </button>
-          </EmptyState>
+        {data.jobs.length === 0 ? (
+          <EmptyState>No active jobs yet. Quotes we send you will appear here and walk through to delivery.</EmptyState>
         ) : (
           <div className="grid gap-3">
-            {data.active.slice(0, 3).map((o) => (
-              <OrderRow key={o.id} order={o} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Recent activity */}
-      <div>
-        <SectionHeading title="Recent Activity" />
-        {recent.length === 0 ? (
-          <EmptyState>Updates about your orders, invoices, and approvals will show here.</EmptyState>
-        ) : (
-          <div className="grid gap-2">
-            {recent.map((n) => (
-              <button
-                key={n.id}
-                type="button"
-                onClick={() => n.section && go(n.section as SectionKey)}
-                className="flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-white/5"
-                style={{ border: "1px solid rgba(255,255,255,0.08)" }}
-              >
-                <div className="flex items-center gap-3">
-                  {!n.read && <span className="h-2 w-2 rounded-full" style={{ background: "#34e3f5" }} />}
-                  <div>
-                    <span className="block text-sm font-bold text-paper">{n.title}</span>
-                    {n.body && <span className="block text-xs text-muted">{n.body}</span>}
-                  </div>
+            {data.jobs.slice(0, 4).map((j) => (
+              <Panel key={j.quoteId}>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-bold text-paper">{j.title}</span>
+                  <span className="font-mono text-xs text-cyan">{j.soNum ?? j.quoteNum}</span>
                 </div>
-                <span className="whitespace-nowrap text-xs text-muted-dark">{timeAgo(n.createdAt)}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ============ ORDERS (current & pending) ============ */
-
-export function Orders({ data, go }: { data: PortalData; go: (s: SectionKey) => void }) {
-  const pendingRequests = data.requests.filter((r) => r.status !== "answered");
-  return (
-    <div className="grid gap-8">
-      <div>
-        <SectionHeading title="Current & Pending Orders" hint="Everything currently in motion." />
-        {data.active.length === 0 ? (
-          <EmptyState>
-            No active orders.{" "}
-            <button type="button" onClick={() => go("requests")} className="font-bold text-cyan underline">
-              Start a new request →
-            </button>
-          </EmptyState>
-        ) : (
-          <div className="grid gap-3">
-            {data.active.map((o) => (
-              <OrderRow key={o.id} order={o} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <SectionHeading title="Pending Requests" />
-        {pendingRequests.length === 0 ? (
-          <EmptyState>No open requests.</EmptyState>
-        ) : (
-          <div className="grid gap-3">
-            {pendingRequests.map((r) => (
-              <Panel key={r.id} className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <span className="block text-sm font-bold text-paper">{r.summary}</span>
-                  <span className="mt-0.5 block text-xs text-muted">Submitted {fmtDate(r.createdAt)}</span>
-                </div>
-                <StatusChip status={r.status} />
+                <MiniTracker stages={data.stages.map((s) => s.label)} current={j.stageIndex} />
               </Panel>
             ))}
           </div>
@@ -231,186 +96,100 @@ export function Orders({ data, go }: { data: PortalData; go: (s: SectionKey) => 
   );
 }
 
-/* ============ HISTORY + REORDER ============ */
+function ActionItems({ data, go }: { data: PortalData; go: (s: SectionKey) => void }) {
+  const items: { text: string; cta: string; to: SectionKey }[] = [];
+  data.quotes.filter((q) => q.status === "sent").forEach((q) =>
+    items.push({ text: `Quote ${q.quoteNum} is ready — review pricing and submit your PO.`, cta: "Review quote", to: "quotes" })
+  );
+  data.salesOrders.filter((so) => so.status === "sent" && !so.clientSignature).forEach((so) =>
+    items.push({ text: `Order ${so.soNum} is awaiting your signature.`, cta: "Sign order", to: "orders" })
+  );
+  data.salesOrders.filter((so) => !so.artworkApproved && so.artFiles.length > 0 && so.status !== "pending").forEach((so) =>
+    items.push({ text: `Artwork proof for ${so.soNum} needs your approval.`, cta: "Review proof", to: "orders" })
+  );
 
-export function History({
-  data,
-  user,
-  refresh,
-}: {
-  data: PortalData;
-  user: User;
-  refresh: () => void;
-}) {
-  const [changeFor, setChangeFor] = useState<PortalOrder | null>(null);
-  const [changeNotes, setChangeNotes] = useState("");
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function rerun(order: PortalOrder, mode: "exact" | "changes", notes?: string) {
-    setBusyId(order.id);
-    setErr(null);
-    try {
-      const token = await user.getIdToken();
-      const res = await reorderOrder(token, order.id, mode, notes);
-      if (!res.ok) { setErr(res.error ?? "Could not submit reorder."); return; }
-      setConfirmed(order.id);
-      setChangeFor(null);
-      setChangeNotes("");
-      refresh();
-      setTimeout(() => setConfirmed(null), 3000);
-    } catch {
-      setErr("Could not submit reorder — please try again.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
+  if (items.length === 0) return <EmptyState>You&apos;re all caught up. 🎉</EmptyState>;
   return (
-    <div>
-      <SectionHeading title="Order History & Reorder" hint="Rerun a finished job in two clicks." />
-      {err && <p className="mb-4 text-sm text-red-300">{err}</p>}
-      {data.history.length === 0 ? (
-        <EmptyState>
-          Completed orders will appear here with one-click reorder. Once your first production run
-          finishes, rerunning it takes exactly two clicks.
-        </EmptyState>
-      ) : (
-        <div className="grid gap-3">
-          {data.history.map((o) => (
-            <OrderRow key={o.id} order={o}>
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  disabled={busyId === o.id}
-                  onClick={() => void rerun(o, "exact")}
-                  className="btn btn-primary"
-                  style={{ minHeight: 40, fontSize: 13, ...dim(busyId === o.id) }}
-                >
-                  ⟳ Rerun — No Changes
-                </button>
-                <button
-                  type="button"
-                  disabled={busyId === o.id}
-                  onClick={() => setChangeFor(changeFor?.id === o.id ? null : o)}
-                  className="btn btn-secondary"
-                  style={{ minHeight: 40, fontSize: 13 }}
-                >
-                  ✎ Rerun — With Changes
-                </button>
-                {confirmed === o.id && (
-                  <span className="text-sm font-bold" style={{ color: "#7dffb0" }}>
-                    ✓ Reorder submitted
-                  </span>
-                )}
-              </div>
-              {changeFor?.id === o.id && (
-                <div
-                  className="mt-4 rounded-2xl p-4"
-                  style={{ border: "1px solid rgba(0,216,242,0.3)", background: "rgba(0,216,242,0.05)" }}
-                >
-                  <Field label="What should change on this rerun?">
-                    <textarea
-                      style={{ ...inputStyle, minHeight: "90px", resize: "vertical" }}
-                      value={changeNotes}
-                      onChange={(e) => setChangeNotes(e.target.value)}
-                      placeholder="e.g. Update flavor text to 'New Recipe', bump quantity to 50,000, switch finish to matte."
-                      autoFocus
-                    />
-                  </Field>
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      type="button"
-                      disabled={busyId === o.id || !changeNotes.trim()}
-                      onClick={() => void rerun(o, "changes", changeNotes.trim())}
-                      className="btn btn-primary"
-                      style={{ minHeight: 40, fontSize: 13, ...dim(busyId === o.id || !changeNotes.trim()) }}
-                    >
-                      Submit Rerun With Changes
-                    </button>
-                    <button type="button" onClick={() => setChangeFor(null)} className="btn btn-dark" style={{ minHeight: 40, fontSize: 13 }}>
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </OrderRow>
-          ))}
+    <div className="grid gap-2">
+      {items.map((it, i) => (
+        <div key={i} className="flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3"
+          style={{ border: "1px solid rgba(0,216,242,0.35)", background: "rgba(0,216,242,0.05)" }}>
+          <span className="text-sm font-semibold text-paper">{it.text}</span>
+          <button type="button" onClick={() => go(it.to)} className="btn btn-primary" style={{ minHeight: 36, fontSize: 13 }}>
+            {it.cta}
+          </button>
         </div>
-      )}
+      ))}
     </div>
   );
 }
 
-/* ============ INVOICES + PAYMENT ============ */
+/* ============================ TRACKERS ============================ */
 
-const PAY_METHODS = ["ACH / Bank Transfer", "Wire", "Check", "Credit Card (call me)", "Other"];
+function MiniTracker({ stages, current }: { stages: string[]; current: number }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {stages.map((s, i) => (
+        <div key={s} className="flex flex-1 flex-col items-center gap-1">
+          <div className="h-1.5 w-full rounded-full" style={{ background: i <= current ? "#00d8f2" : "rgba(255,255,255,0.12)" }} />
+          <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: i === current ? "#34e3f5" : i < current ? "#7dffb0" : "#536575" }}>
+            {s.split(" ")[0]}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-export function Invoices({
-  data,
-  user,
-  refresh,
-}: {
-  data: PortalData;
-  user: User;
-  refresh: () => void;
-}) {
-  const [payFor, setPayFor] = useState<PortalInvoice | null>(null);
+function FullTracker({ stages, current }: { stages: string[]; current: number }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {stages.map((s, i) => {
+        const done = i < current, active = i === current;
+        return (
+          <div key={s} className="flex items-center gap-2 rounded-full px-3 py-1.5"
+            style={{
+              border: `1px solid ${active ? "rgba(0,216,242,0.7)" : done ? "rgba(95,255,162,0.4)" : "rgba(255,255,255,0.12)"}`,
+              background: active ? "rgba(0,216,242,0.12)" : done ? "rgba(95,255,162,0.06)" : "transparent",
+            }}>
+            <span className="flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-black"
+              style={{ background: done ? "#7dffb0" : active ? "#00d8f2" : "rgba(255,255,255,0.12)", color: done || active ? "#001018" : "#a9b9c8" }}>
+              {done ? "✓" : i + 1}
+            </span>
+            <span className="text-xs font-bold" style={{ color: active ? "#34e3f5" : done ? "#7dffb0" : "#a9b9c8" }}>{s}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-  const outstanding = data.invoices.filter((i) => i.status === "unpaid" || i.status === "overdue");
-  const totalDue = outstanding.reduce((s, i) => s + i.amount, 0);
+/* ============================ STATUS ============================ */
 
+export function Status({ data }: { data: PortalData }) {
+  const labels = data.stages.map((s) => s.label);
   return (
     <div>
-      <SectionHeading
-        title="Invoices & Payments"
-        hint={
-          outstanding.length
-            ? `${outstanding.length} invoice${outstanding.length > 1 ? "s" : ""} outstanding · ${fmtMoney(totalDue)} due`
-            : "All settled — nothing outstanding."
-        }
-      />
-      {data.invoices.length === 0 ? (
-        <EmptyState>Invoices issued by Microflex will appear here, with a one-tap way to submit payment.</EmptyState>
+      <SectionHeading title="Order Status" hint="Every job, from quote to delivery." />
+      {data.jobs.length === 0 ? (
+        <EmptyState>No jobs in progress. Once we send you a quote, you can track it here end-to-end.</EmptyState>
       ) : (
-        <div className="grid gap-3">
-          {data.invoices.map((inv) => (
-            <Panel key={inv.id}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="grid gap-4">
+          {data.jobs.map((j) => (
+            <Panel key={j.quoteId}>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="font-mono text-xs font-bold text-cyan">{inv.invoiceNumber}</span>
-                    <span className="text-base font-bold text-paper">{fmtMoney(inv.amount, inv.currency)}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted">
-                    {inv.description}
-                    {inv.orderNumber ? ` · Order #${inv.orderNumber}` : ""} · Issued {fmtDate(inv.issuedAt)}
-                    {inv.dueAt ? ` · Due ${fmtDate(inv.dueAt)}` : ""}
-                  </p>
+                  <span className="block text-sm font-bold text-paper">{j.title}</span>
+                  <span className="font-mono text-xs text-muted">
+                    {j.quoteNum}{j.soNum ? ` · ${j.soNum}` : ""}
+                  </span>
                 </div>
-                <StatusChip status={inv.status} label={inv.statusLabel} />
+                <span className="text-xs font-extrabold uppercase tracking-widest" style={{ color: "#34e3f5" }}>
+                  {j.stageLabel}
+                </span>
               </div>
-              {(inv.status === "unpaid" || inv.status === "overdue") && (
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setPayFor(payFor?.id === inv.id ? null : inv)}
-                    className="btn btn-primary"
-                    style={{ minHeight: 40, fontSize: 13 }}
-                  >
-                    💳 Pay / Submit Payment
-                  </button>
-                </div>
-              )}
-              {inv.status === "processing" && (
-                <p className="mt-3 text-xs" style={{ color: "#34e3f5" }}>
-                  Payment submitted — we&apos;re confirming receipt.
-                </p>
-              )}
-              {payFor?.id === inv.id && (
-                <PaymentForm invoice={inv} user={user} onDone={() => { setPayFor(null); refresh(); }} onCancel={() => setPayFor(null)} />
-              )}
+              <FullTracker stages={labels} current={j.stageIndex} />
+              <p className="mt-3 text-xs text-muted-dark">Updated {timeAgo(j.updatedAt)}</p>
             </Panel>
           ))}
         </div>
@@ -419,114 +198,112 @@ export function Invoices({
   );
 }
 
-function PaymentForm({
-  invoice,
-  user,
-  onDone,
-  onCancel,
-}: {
-  invoice: PortalInvoice;
-  user: User;
-  onDone: () => void;
-  onCancel: () => void;
-}) {
-  const [method, setMethod] = useState(PAY_METHODS[0]);
-  const [reference, setReference] = useState("");
-  const [note, setNote] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+/* ============================ QUOTES ============================ */
 
-  async function submit() {
-    setBusy(true);
-    setErr(null);
-    try {
-      const token = await user.getIdToken();
-      let proof: { name: string; url: string } | undefined;
-      if (file && isStorageConfigured()) {
-        const up = await uploadPortalFile(user.uid, "payment-proof", file);
-        proof = { name: up.name, url: up.url };
-      }
-      const res = await submitInvoicePayment(token, invoice.id, { method, reference, note, proof });
-      if (!res.ok) { setErr(res.error ?? "Could not submit payment."); return; }
-      onDone();
-    } catch {
-      setErr("Could not submit payment — please try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
+export function Quotes({ data, user, refresh }: { data: PortalData; user: User; refresh: () => void }) {
   return (
-    <div className="mt-4 rounded-2xl p-4" style={{ border: "1px solid rgba(0,216,242,0.3)", background: "rgba(0,216,242,0.05)" }}>
-      <p className="mb-3 text-sm text-muted">
-        Submitting payment details for <span className="font-bold text-paper">{invoice.invoiceNumber}</span> ·{" "}
-        {fmtMoney(invoice.amount, invoice.currency)}. Our team confirms receipt and marks it paid.
-      </p>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Payment method">
-          <select style={inputStyle} value={method} onChange={(e) => setMethod(e.target.value)}>
-            {PAY_METHODS.map((m) => <option key={m}>{m}</option>)}
-          </select>
-        </Field>
-        <Field label="Reference / confirmation #">
-          <input style={inputStyle} value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. ACH trace, check #" />
-        </Field>
-      </div>
-      <div className="mt-4">
-        <Field label="Note (optional)">
-          <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical" }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything we should know about this payment." />
-        </Field>
-      </div>
-      {isStorageConfigured() && (
-        <div className="mt-4">
-          <Field label="Attach proof (optional)">
-            <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm text-muted" />
-          </Field>
+    <div>
+      <SectionHeading title="Quotes" hint="Review pricing, pick your quantity, and submit a PO." />
+      {data.quotes.length === 0 ? (
+        <EmptyState>No quotes yet. When our team sends you a quote, it lands here for review and one-click PO submission.</EmptyState>
+      ) : (
+        <div className="grid gap-4">
+          {data.quotes.map((q) => <QuoteCard key={q.id} quote={q} user={user} refresh={refresh} />)}
         </div>
       )}
-      {err && <p className="mt-3 text-sm text-red-300">{err}</p>}
-      <div className="mt-4 flex gap-2">
-        <button type="button" disabled={busy} onClick={() => void submit()} className="btn btn-primary" style={{ minHeight: 40, fontSize: 13, ...dim(busy) }}>
-          {busy ? "Submitting…" : "Submit Payment"}
-        </button>
-        <button type="button" onClick={onCancel} className="btn btn-dark" style={{ minHeight: 40, fontSize: 13 }}>Cancel</button>
-      </div>
     </div>
   );
 }
 
-/* ============ NEW REQUEST FORM ============ */
+function QuoteCard({ quote, user, refresh }: { quote: PortalQuote; user: User; refresh: () => void }) {
+  const [open, setOpen] = useState(quote.canSubmitPO);
+  return (
+    <Panel>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-mono text-xs font-bold text-cyan">{quote.quoteNum}{quote.rev ? `-${quote.rev}` : ""}</span>
+            <span className="text-base font-bold text-paper">{quote.company || quote.jobDesc}</span>
+          </div>
+          {quote.specs && <p className="mt-1 text-xs text-muted">{quote.specs}</p>}
+          <p className="mt-0.5 text-xs text-muted-dark">Terms {quote.payTerms} · Updated {fmtDate(quote.updatedAt)}</p>
+        </div>
+        <StatusChip status={quote.status} label={quote.statusLabel} />
+      </div>
 
-const REQUEST_TYPES = ["Request a Quote", "Upload Artwork", "Submit Purchase Order", "Request Sample Kit", "Project Support", "Invoice / Billing Question"];
-const PACKAGING_TYPES = ["Printed Film / Rollstock", "Stand-Up Pouch", "Lay-Flat Pouch", "Labels & Stickers", "Shrink Sleeves", "Sachets / Stick Packs", "Display & Shipping", "Custom / Not Sure"];
-const QUANTITIES = ["Under 5,000", "5,000 – 25,000", "25,000 – 100,000", "100,000 – 500,000", "500,000+", "Not sure yet"];
-const TIMELINES = ["ASAP / Rush", "Within 30 days", "1 – 3 months", "3 – 6 months", "Exploring options"];
+      {quote.canSubmitPO ? (
+        <>
+          <button type="button" onClick={() => setOpen(!open)} className="mt-4 text-sm font-bold text-cyan underline">
+            {open ? "Hide PO form" : "Review & submit PO →"}
+          </button>
+          {open && <POForm quote={quote} user={user} refresh={refresh} />}
+        </>
+      ) : (
+        <div className="mt-4 rounded-xl p-3 text-xs text-muted" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+          {quote.poNumber ? (
+            <>PO <span className="font-bold text-paper">#{quote.poNumber}</span> submitted
+            {quote.poSelectedQty ? ` · ${quote.poSelectedQty.toLocaleString()} units` : ""}
+            {quote.poSelectedTotal ? ` · ${fmtMoney(quote.poSelectedTotal)}` : ""}. We&apos;ll take it from here.</>
+          ) : (
+            <>This quote is {quote.statusLabel.toLowerCase()}.</>
+          )}
+        </div>
+      )}
+    </Panel>
+  );
+}
 
-export function RequestForm({ user, onDone }: { user: User; onDone: () => void }) {
-  const [form, setForm] = useState({
-    type: REQUEST_TYPES[0],
-    packagingType: PACKAGING_TYPES[0],
-    quantity: QUANTITIES[0],
-    timeline: TIMELINES[1],
-    skus: "",
-    message: "",
-  });
+function POForm({ quote, user, refresh }: { quote: PortalQuote; user: User; refresh: () => void }) {
+  const skuOptions = Array.from({ length: Math.max(1, quote.skuCount) }, (_, i) => i);
+  const [skuCol, setSkuCol] = useState(quote.poSkuCount ?? 0);
+  const [tierIdx, setTierIdx] = useState(quote.poQtyIndex ?? 0);
+  const [poNumber, setPoNumber] = useState(quote.poNumber ?? "");
+  const [shipTo, setShipTo] = useState(quote.poShipTo ?? "");
+  const [instructions, setInstructions] = useState(quote.poInstructions ?? "");
+  const [signature, setSignature] = useState(quote.poSignature ?? "");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<"po" | "art" | null>(null);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
+  const tier = quote.tiers[tierIdx];
+
+  async function upload(kind: "po" | "art", files: FileList | null) {
+    if (!files || !files.length) return;
+    if (!isStorageConfigured()) { setErr("File storage isn't enabled yet."); return; }
+    setUploading(kind);
     setErr(null);
     try {
+      const uploaded: PortalFile[] = [];
+      for (const file of Array.from(files)) {
+        const up = await uploadPortalFile(quote.id, kind, file);
+        uploaded.push({ name: up.name, url: up.url });
+      }
       const token = await user.getIdToken();
-      await submitPortalRequest(token, form);
-      setDone(true);
-      setTimeout(onDone, 1600);
+      const res = await recordQuoteFiles(token, quote.id, kind, uploaded);
+      if (!res.ok) { setErr(res.error ?? "Upload failed."); return; }
+      refresh();
     } catch {
-      setErr("Something went wrong — please try again.");
+      setErr("Upload failed — please try again.");
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  async function submit() {
+    if (!poNumber.trim() || !signature.trim()) { setErr("PO number and signature are required."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await submitPO(token, quote.id, {
+        poNumber, poShipTo: shipTo, poInstructions: instructions, poSignature: signature,
+        poQtyIndex: tierIdx, poSkuCount: skuCol,
+      });
+      if (!res.ok) { setErr(res.error ?? "Could not submit PO."); return; }
+      setDone(true);
+      setTimeout(refresh, 1400);
+    } catch {
+      setErr("Could not submit — please try again.");
     } finally {
       setBusy(false);
     }
@@ -534,420 +311,474 @@ export function RequestForm({ user, onDone }: { user: User; onDone: () => void }
 
   if (done) {
     return (
-      <div className="mx-auto max-w-lg rounded-2xl p-8 text-center" style={{ border: "1px solid rgba(95,255,162,0.35)", background: "rgba(95,255,162,0.06)" }}>
-        <div className="mb-2 text-3xl">✓</div>
-        <h3 className="mb-1 text-lg font-bold text-paper">Request received</h3>
-        <p className="text-sm text-muted">The Microflex team has been notified — it now shows under Pending Requests.</p>
+      <div className="mt-4 rounded-2xl p-6 text-center" style={{ border: "1px solid rgba(95,255,162,0.4)", background: "rgba(95,255,162,0.06)" }}>
+        <div className="mb-1 text-3xl">✓</div>
+        <p className="text-sm font-bold text-paper">PO submitted — your order is being created.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 grid gap-5 rounded-2xl p-4" style={{ border: "1px solid rgba(0,216,242,0.3)", background: "rgba(0,216,242,0.05)" }}>
+      {/* SKU selector */}
+      {quote.skuCount > 1 && (
+        <Field label="SKU variant">
+          <select style={inputStyle} value={skuCol} onChange={(e) => setSkuCol(Number(e.target.value))}>
+            {skuOptions.map((i) => <option key={i} value={i}>SKU set {i + 1}</option>)}
+          </select>
+        </Field>
+      )}
+
+      {/* Pricing tiers */}
+      <div>
+        <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-widest text-muted">Choose quantity</span>
+        <div className="grid gap-2">
+          {quote.tiers.length === 0 ? (
+            <p className="text-xs text-muted">Pricing will appear here once finalized.</p>
+          ) : quote.tiers.map((t, i) => (
+            <button key={i} type="button" onClick={() => setTierIdx(i)}
+              className="flex items-center justify-between rounded-xl px-4 py-3 text-left transition"
+              style={{
+                border: `1px solid ${tierIdx === i ? "rgba(0,216,242,0.7)" : "rgba(255,255,255,0.12)"}`,
+                background: tierIdx === i ? "rgba(0,216,242,0.1)" : "rgba(255,255,255,0.02)",
+              }}>
+              <span className="text-sm font-bold text-paper">{t.qty.toLocaleString()} units</span>
+              <span className="text-sm text-muted">
+                {t.ppu ? `${fmtMoney(t.ppu)}/unit · ` : ""}<span className="font-bold text-cyan">{t.total ? fmtMoney(t.total) : "—"}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Your PO number"><input style={inputStyle} value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="e.g. PO-10482" /></Field>
+        <Field label="Ship to"><input style={inputStyle} value={shipTo} onChange={(e) => setShipTo(e.target.value)} placeholder="Shipping address" /></Field>
+      </div>
+      <Field label="Special instructions (optional)">
+        <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical" }} value={instructions} onChange={(e) => setInstructions(e.target.value)} />
+      </Field>
+
+      {/* File uploads */}
+      {isStorageConfigured() && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-widest text-muted">PO document</span>
+            <input type="file" multiple onChange={(e) => void upload("po", e.target.files)} className="text-sm text-muted" />
+            {uploading === "po" && <p className="mt-1 text-xs text-cyan">Uploading…</p>}
+            {quote.poFiles.length > 0 && <p className="mt-1 text-xs text-muted">{quote.poFiles.length} file(s) attached</p>}
+          </div>
+          <div>
+            <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-widest text-muted">Artwork</span>
+            <input type="file" multiple onChange={(e) => void upload("art", e.target.files)} className="text-sm text-muted" />
+            {uploading === "art" && <p className="mt-1 text-xs text-cyan">Uploading…</p>}
+            {quote.artFiles.length > 0 && <p className="mt-1 text-xs text-muted">{quote.artFiles.length} file(s) attached</p>}
+          </div>
+        </div>
+      )}
+
+      <Field label="Type your full name to sign">
+        <input style={inputStyle} value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Full name" />
+      </Field>
+
+      {tier && (
+        <p className="text-xs text-muted">
+          Submitting authorizes production of <span className="font-bold text-paper">{tier.qty.toLocaleString()} units</span>
+          {tier.total ? <> at <span className="font-bold text-paper">{fmtMoney(tier.total)}</span></> : null}.
+        </p>
+      )}
+      {err && <p className="text-sm text-red-300">{err}</p>}
+      <button type="button" disabled={busy} onClick={() => void submit()} className="btn btn-primary" style={dim(busy)}>
+        {busy ? "Submitting…" : "Submit PO & Authorize Order"}
+      </button>
+    </div>
+  );
+}
+
+/* ============================ ORDERS (SO) ============================ */
+
+export function Orders({ data, user, refresh }: { data: PortalData; user: User; refresh: () => void }) {
+  return (
+    <div>
+      <SectionHeading title="Orders" hint="Sign your sales orders and approve artwork proofs." />
+      {data.salesOrders.length === 0 ? (
+        <EmptyState>No orders yet. Once you submit a PO on a quote, your sales order shows up here to sign.</EmptyState>
+      ) : (
+        <div className="grid gap-4">
+          {data.salesOrders.map((so) => <OrderCard key={so.id} so={so} user={user} refresh={refresh} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrderCard({ so, user, refresh }: { so: PortalSalesOrder; user: User; refresh: () => void }) {
+  const [signature, setSignature] = useState("");
+  const [reviseOpen, setReviseOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const needsSignature = so.status === "sent" && !so.clientSignature;
+  const needsArtwork = !so.artworkApproved && so.artFiles.length > 0 && so.status !== "pending";
+
+  async function sign() {
+    if (!signature.trim()) { setErr("Please type your name to sign."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await signSalesOrder(token, so.id, signature);
+      if (!res.ok) { setErr(res.error ?? "Could not sign."); return; }
+      refresh();
+    } catch { setErr("Could not sign — please try again."); } finally { setBusy(false); }
+  }
+
+  async function artwork(decision: "approve" | "revise") {
+    if (decision === "revise" && !note.trim()) { setErr("Describe the changes needed."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await decideArtwork(token, so.id, decision, note);
+      if (!res.ok) { setErr(res.error ?? "Could not submit."); return; }
+      setReviseOpen(false); setNote("");
+      refresh();
+    } catch { setErr("Could not submit — please try again."); } finally { setBusy(false); }
+  }
+
+  return (
+    <Panel>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-mono text-xs font-bold text-cyan">{so.soNum}</span>
+            <span className="text-base font-bold text-paper">{so.jobDesc}</span>
+          </div>
+          <p className="mt-1 text-xs text-muted">
+            {so.selectedQty ? `${so.selectedQty.toLocaleString()} units · ` : ""}
+            {so.total ? fmtMoney(so.total) : ""}{so.poNumber ? ` · PO #${so.poNumber}` : ""}
+          </p>
+        </div>
+        <StatusChip status={so.status} label={so.statusLabel} />
+      </div>
+
+      {/* signing doc link */}
+      {so.signingDocLink && (
+        <a href={so.signingDocLink} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-xs font-bold text-cyan underline">
+          📄 Open signing document
+        </a>
+      )}
+
+      {/* signature */}
+      {needsSignature ? (
+        <div className="mt-4 rounded-2xl p-4" style={{ border: "1px solid rgba(0,216,242,0.3)", background: "rgba(0,216,242,0.05)" }}>
+          <Field label="Sign this order — type your full name">
+            <input style={inputStyle} value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Full name" />
+          </Field>
+          <button type="button" disabled={busy} onClick={() => void sign()} className="btn btn-primary mt-3" style={{ minHeight: 40, fontSize: 13, ...dim(busy) }}>
+            {busy ? "Signing…" : "Sign Order"}
+          </button>
+        </div>
+      ) : so.clientSignature ? (
+        <p className="mt-3 text-xs" style={{ color: "#7dffb0" }}>✓ Signed by {so.clientSignature}{so.clientSignedAt ? ` on ${fmtDate(so.clientSignedAt)}` : ""}</p>
+      ) : null}
+
+      {/* artwork approval */}
+      {so.artFiles.length > 0 && (
+        <div className="mt-4">
+          <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-widest text-muted">Artwork proof</span>
+          <div className="grid gap-1">
+            {so.artFiles.map((f, i) => (
+              <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-cyan underline">📎 {f.name}</a>
+            ))}
+          </div>
+          {needsArtwork ? (
+            <>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" disabled={busy} onClick={() => void artwork("approve")} className="btn btn-primary" style={{ minHeight: 38, fontSize: 13, ...dim(busy) }}>✓ Approve Artwork</button>
+                <button type="button" disabled={busy} onClick={() => setReviseOpen(!reviseOpen)} className="btn btn-secondary" style={{ minHeight: 38, fontSize: 13 }}>✎ Request Changes</button>
+              </div>
+              {reviseOpen && (
+                <div className="mt-3 rounded-2xl p-4" style={{ border: "1px solid rgba(255,196,0,0.35)", background: "rgba(255,196,0,0.06)" }}>
+                  <Field label="What needs to change?">
+                    <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical" }} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
+                  </Field>
+                  <button type="button" disabled={busy || !note.trim()} onClick={() => void artwork("revise")} className="btn btn-primary mt-3" style={{ minHeight: 38, fontSize: 13, ...dim(busy || !note.trim()) }}>Send Change Request</button>
+                </div>
+              )}
+            </>
+          ) : so.artworkApproved ? (
+            <p className="mt-2 text-xs" style={{ color: "#7dffb0" }}>✓ Artwork approved{so.artworkApprovedAt ? ` on ${fmtDate(so.artworkApprovedAt)}` : ""}</p>
+          ) : so.artworkRevisionNote ? (
+            <p className="mt-2 text-xs text-muted">Changes requested: {so.artworkRevisionNote}</p>
+          ) : null}
+        </div>
+      )}
+      {err && <p className="mt-3 text-sm text-red-300">{err}</p>}
+    </Panel>
+  );
+}
+
+/* ============================ MESSAGES ============================ */
+
+export function Messages({ data, user, refresh }: { data: PortalData; user: User; refresh: () => void }) {
+  const quoteIds = data.quotes.map((q) => q.id);
+  const [active, setActive] = useState<string>(quoteIds[0] ?? "");
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const activeQuote = useMemo(() => data.quotes.find((q) => q.id === active), [data.quotes, active]);
+  const thread = data.messagesByQuote[active] ?? [];
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    if (!body.trim() || !active) return;
+    setBusy(true); setErr(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await sendQuoteMessage(token, active, body);
+      if (!res.ok) { setErr(res.error ?? "Could not send."); return; }
+      setBody("");
+      refresh();
+    } catch { setErr("Could not send — please try again."); } finally { setBusy(false); }
+  }
+
+  if (data.quotes.length === 0) {
+    return (
+      <div>
+        <SectionHeading title="Messages" hint="A direct line to your account team." />
+        <EmptyState>Messaging opens up once you have a quote. Each quote gets its own thread.</EmptyState>
       </div>
     );
   }
 
   return (
     <div>
-      <SectionHeading title="New Request" hint="Tell us what you need — we route it to your account team." />
-      <form onSubmit={submit} className="grid max-w-2xl gap-5">
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="What do you need?">
-            <select style={inputStyle} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-              {REQUEST_TYPES.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          </Field>
-          <Field label="Packaging type">
-            <select style={inputStyle} value={form.packagingType} onChange={(e) => setForm({ ...form, packagingType: e.target.value })}>
-              {PACKAGING_TYPES.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          </Field>
-          <Field label="Quantity">
-            <select style={inputStyle} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })}>
-              {QUANTITIES.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          </Field>
-          <Field label="Timeline">
-            <select style={inputStyle} value={form.timeline} onChange={(e) => setForm({ ...form, timeline: e.target.value })}>
-              {TIMELINES.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          </Field>
+      <SectionHeading title="Messages" hint="Per-quote thread with your Microflex team." />
+      {data.quotes.length > 1 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {data.quotes.map((q) => (
+            <button key={q.id} type="button" onClick={() => setActive(q.id)}
+              className="rounded-full px-3 py-1.5 text-xs font-extrabold transition"
+              style={{
+                border: `1px solid ${active === q.id ? "rgba(0,216,242,0.7)" : "rgba(255,255,255,0.14)"}`,
+                background: active === q.id ? "rgba(0,216,242,0.12)" : "rgba(255,255,255,0.03)",
+                color: active === q.id ? "#34e3f5" : "#a9b9c8",
+              }}>
+              {q.quoteNum}
+            </button>
+          ))}
         </div>
-        <Field label="SKU names / product names (optional)">
-          <input style={inputStyle} value={form.skus} onChange={(e) => setForm({ ...form, skus: e.target.value })} placeholder="e.g. Vanilla 12oz, Mocha 12oz" />
-        </Field>
-        <Field label="Project details">
-          <textarea style={{ ...inputStyle, minHeight: "120px", resize: "vertical" }} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} placeholder="Tell us about the project, artwork status, materials, finishes, or questions." />
-        </Field>
+      )}
+
+      <div className="mb-4 grid gap-3 rounded-2xl p-4" style={{ border: "1px solid rgba(255,255,255,0.1)", background: "rgba(2,5,9,0.35)", maxHeight: 420, overflowY: "auto" }}>
+        {thread.length === 0 ? (
+          <EmptyState>No messages on {activeQuote?.quoteNum ?? "this quote"} yet. Say hello.</EmptyState>
+        ) : thread.map((m) => {
+          const mine = m.from === "client";
+          return (
+            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+              <div className="max-w-[78%] rounded-2xl px-4 py-2.5"
+                style={{
+                  background: mine ? "linear-gradient(135deg, rgba(0,216,242,0.18), rgba(0,168,207,0.1))" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${mine ? "rgba(0,216,242,0.4)" : "rgba(255,255,255,0.1)"}`,
+                }}>
+                <div className="mb-0.5 text-[11px] font-bold text-muted">{m.name} · {m.createdAt ? fmtDateTime(m.createdAt) : ""}</div>
+                <p className="whitespace-pre-wrap text-sm text-paper">{m.text}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <form onSubmit={send} className="grid gap-3">
+        <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical" }} value={body} onChange={(e) => setBody(e.target.value)} placeholder={`Message about ${activeQuote?.quoteNum ?? "this quote"}…`} />
         {err && <p className="text-sm text-red-300">{err}</p>}
-        <button type="submit" disabled={busy} className="btn btn-primary" style={dim(busy)}>
-          {busy ? "Submitting…" : "Submit Request"}
+        <button type="submit" disabled={busy || !body.trim()} className="btn btn-primary ml-auto" style={dim(busy || !body.trim())}>
+          {busy ? "Sending…" : "Send"}
         </button>
       </form>
     </div>
   );
 }
 
-/* ============ MESSAGES ============ */
+/* ============================ ACCOUNT (CRM) ============================ */
 
-export function Messages({
-  data,
-  user,
-  refresh,
-}: {
-  data: PortalData;
-  user: User;
-  refresh: () => void;
-}) {
-  const [body, setBody] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+const EDIT_FIELDS: { key: "company" | "industry" | "contact" | "phone" | "billTo" | "shipTo" | "notes"; label: string; multiline?: boolean }[] = [
+  { key: "company", label: "Company name" },
+  { key: "industry", label: "Industry" },
+  { key: "contact", label: "Primary contact" },
+  { key: "phone", label: "Phone" },
+  { key: "billTo", label: "Billing address", multiline: true },
+  { key: "shipTo", label: "Shipping address", multiline: true },
+  { key: "notes", label: "Notes / special instructions", multiline: true },
+];
+
+export function Account({ data, user, refresh }: { data: PortalData; user: User; refresh: () => void }) {
+  const p = data.profile;
+  const blank = () => ({
+    company: p.company, industry: p.industry, contact: p.contact, phone: p.phone,
+    billTo: p.billTo, shipTo: p.shipTo, notes: p.notes,
+  });
+  const [form, setForm] = useState<Record<string, string>>(blank);
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
-    if (!body.trim() && !file) return;
-    setBusy(true);
-    setErr(null);
+  const dirty = EDIT_FIELDS.some((f) => (form[f.key] ?? "").trim() !== ((p[f.key] as string) ?? "").trim());
+
+  async function save() {
+    if (!dirty) { setErr("Nothing changed."); return; }
+    setBusy(true); setErr(null);
     try {
       const token = await user.getIdToken();
-      let attachment: { name: string; url: string } | undefined;
-      if (file && isStorageConfigured()) {
-        const up = await uploadPortalFile(user.uid, "messages", file);
-        attachment = { name: up.name, url: up.url };
-      }
-      const res = await sendPortalMessage(token, body, attachment);
-      if (!res.ok) { setErr(res.error ?? "Could not send."); return; }
-      setBody("");
-      setFile(null);
+      const res = await submitProfileChange(token, form);
+      if (!res.ok) { setErr(res.error ?? "Could not submit."); return; }
+      setDone(true);
+      setEditing(false);
       refresh();
-    } catch {
-      setErr("Could not send — please try again.");
-    } finally {
-      setBusy(false);
-    }
+      setTimeout(() => setDone(false), 4000);
+    } catch { setErr("Could not submit — please try again."); } finally { setBusy(false); }
   }
 
+  const pending = data.profileChanges.filter((c) => c.status === "pending");
+  const decided = data.profileChanges.filter((c) => c.status !== "pending");
+
   return (
-    <div>
-      <SectionHeading title="Messages" hint="A direct line to your Microflex account team." />
-      <div
-        className="mb-4 grid gap-3 rounded-2xl p-4"
-        style={{ border: "1px solid rgba(255,255,255,0.1)", background: "rgba(2,5,9,0.35)", maxHeight: 460, overflowY: "auto" }}
-      >
-        {data.messages.length === 0 ? (
-          <EmptyState>No messages yet. Say hello — we usually reply within one business day.</EmptyState>
+    <div className="grid gap-8">
+      <div>
+        <SectionHeading
+          title="Company & Account"
+          hint="Keep your details current. Changes are reviewed by our team before they update your record."
+          action={!editing ? (
+            <button type="button" onClick={() => setEditing(true)} className="btn btn-secondary" style={{ minHeight: 38, fontSize: 13 }}>
+              ✎ Edit details
+            </button>
+          ) : undefined}
+        />
+
+        {done && (
+          <p className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ border: "1px solid rgba(95,255,162,0.4)", background: "rgba(95,255,162,0.06)", color: "#7dffb0" }}>
+            ✓ Submitted for review — we&apos;ll apply it once confirmed.
+          </p>
+        )}
+
+        {!editing ? (
+          <Panel>
+            <dl className="grid gap-4 sm:grid-cols-2">
+              <ProfileRow label="Company" value={p.company} />
+              <ProfileRow label="Industry" value={p.industry} />
+              <ProfileRow label="Primary contact" value={p.contact} />
+              <ProfileRow label="Phone" value={p.phone} />
+              <ProfileRow label="Login email" value={p.email} />
+              <ProfileRow label="Billing address" value={p.billTo} />
+              <ProfileRow label="Shipping address" value={p.shipTo} />
+              <ProfileRow label="Notes" value={p.notes} />
+            </dl>
+            {!p.found && <p className="mt-4 text-xs text-muted">We don&apos;t have a record on file yet — fill this in and our team will set it up.</p>}
+          </Panel>
         ) : (
-          data.messages.map((m) => {
-            const mine = m.sender === "client";
-            return (
-              <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                <div
-                  className="max-w-[78%] rounded-2xl px-4 py-2.5"
-                  style={{
-                    background: mine ? "linear-gradient(135deg, rgba(0,216,242,0.18), rgba(0,168,207,0.1))" : "rgba(255,255,255,0.05)",
-                    border: `1px solid ${mine ? "rgba(0,216,242,0.4)" : "rgba(255,255,255,0.1)"}`,
-                  }}
-                >
-                  <div className="mb-0.5 text-[11px] font-bold text-muted">
-                    {m.authorName} · {fmtDateTime(m.createdAt)}
-                  </div>
-                  {m.body && <p className="whitespace-pre-wrap text-sm text-paper">{m.body}</p>}
-                  {m.attachmentUrl && (
-                    <a href={m.attachmentUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs font-bold text-cyan underline">
-                      📎 {m.attachmentName ?? "Attachment"}
-                    </a>
-                  )}
+          <div className="grid gap-5 rounded-2xl p-4" style={{ border: "1px solid rgba(0,216,242,0.3)", background: "rgba(0,216,242,0.05)" }}>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {EDIT_FIELDS.map((f) => (
+                <div key={f.key} className={f.multiline ? "sm:col-span-2" : ""}>
+                  <Field label={f.label}>
+                    {f.multiline ? (
+                      <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical" }} value={form[f.key] ?? ""} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} />
+                    ) : (
+                      <input style={inputStyle} value={form[f.key] ?? ""} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} />
+                    )}
+                  </Field>
                 </div>
-              </div>
-            );
-          })
+              ))}
+            </div>
+            <p className="text-xs text-muted">Your login email ({p.email}) can&apos;t be changed here — contact us if it needs updating.</p>
+            {err && <p className="text-sm text-red-300">{err}</p>}
+            <div className="flex gap-2">
+              <button type="button" disabled={busy || !dirty} onClick={() => void save()} className="btn btn-primary" style={dim(busy || !dirty)}>
+                {busy ? "Submitting…" : "Submit for Review"}
+              </button>
+              <button type="button" onClick={() => { setEditing(false); setForm(blank()); setErr(null); }} className="btn btn-dark">
+                Cancel
+              </button>
+            </div>
+          </div>
         )}
       </div>
-      <form onSubmit={send} className="grid gap-3">
-        <textarea
-          style={{ ...inputStyle, minHeight: 80, resize: "vertical" }}
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Write a message to the Microflex team…"
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          {isStorageConfigured() && (
-            <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm text-muted" />
-          )}
-          <button type="submit" disabled={busy || (!body.trim() && !file)} className="btn btn-primary ml-auto" style={dim(busy || (!body.trim() && !file))}>
-            {busy ? "Sending…" : "Send"}
-          </button>
+
+      {(pending.length > 0 || decided.length > 0) && (
+        <div>
+          <SectionHeading title="Change Requests" />
+          <div className="grid gap-3">
+            {[...pending, ...decided].map((c) => (
+              <Panel key={c.id}>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <span className="text-xs text-muted">Submitted {fmtDate(c.createdAt)}</span>
+                  <StatusChip
+                    status={c.status === "approved" ? "approved" : c.status === "pending" ? "pending" : "rejected"}
+                    label={c.status === "pending" ? "Awaiting Review" : c.status === "approved" ? "Applied" : "Declined"}
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  {Object.entries(c.changes).map(([k, v]) => (
+                    <div key={k} className="text-xs">
+                      <span className="font-bold text-paper">{k}</span>:{" "}
+                      <span className="text-muted line-through">{v.from || "—"}</span>{" → "}
+                      <span className="text-cyan">{v.to || "—"}</span>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            ))}
+          </div>
         </div>
-        {err && <p className="text-sm text-red-300">{err}</p>}
-      </form>
+      )}
     </div>
   );
 }
 
-/* ============ DOCUMENTS ============ */
+function ProfileRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs font-extrabold uppercase tracking-widest text-muted">{label}</dt>
+      <dd className="mt-0.5 text-sm text-paper">{value || <span className="text-muted-dark">—</span>}</dd>
+    </div>
+  );
+}
 
-const DOC_CATEGORIES = ["artwork", "spec", "po", "contract", "sample", "other"];
-const CATEGORY_LABELS: Record<string, string> = {
-  artwork: "Artwork", spec: "Spec", po: "Purchase Order", contract: "Contract",
-  invoice: "Invoice", sample: "Sample", other: "Other",
-};
+/* ============================ DOCUMENTS ============================ */
 
-export function Documents({
-  data,
-  user,
-  refresh,
-}: {
-  data: PortalData;
-  user: User;
-  refresh: () => void;
-}) {
-  const [category, setCategory] = useState(DOC_CATEGORIES[0]);
-  const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function upload() {
-    if (!file) return;
-    setBusy(true);
-    setErr(null);
-    try {
-      if (!isStorageConfigured()) throw new Error("storage");
-      const up = await uploadPortalFile(user.uid, "documents", file);
-      const token = await user.getIdToken();
-      const res = await recordPortalDocument(token, {
-        name: up.name, url: up.url, category, contentType: up.contentType, size: up.size,
-      });
-      if (!res.ok) { setErr(res.error ?? "Upload failed."); return; }
-      setFile(null);
-      refresh();
-    } catch {
-      setErr("Upload failed — please try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
+export function Documents({ data }: { data: PortalData }) {
+  const docs: { name: string; url: string; tag: string; ctx: string; at?: string }[] = [];
+  data.quotes.forEach((q) => {
+    q.poFiles.forEach((f) => docs.push({ name: f.name, url: f.url, tag: "PO", ctx: q.quoteNum, at: f.uploadedAt }));
+    q.artFiles.forEach((f) => docs.push({ name: f.name, url: f.url, tag: "Artwork", ctx: q.quoteNum, at: f.uploadedAt }));
+  });
+  data.salesOrders.forEach((so) => {
+    so.artFiles.forEach((f) => docs.push({ name: f.name, url: f.url, tag: "Proof", ctx: so.soNum, at: f.uploadedAt }));
+  });
 
   return (
     <div>
-      <SectionHeading title="Documents & Files" hint="Your shared library — artwork, specs, POs, contracts, and more." />
-
-      {isStorageConfigured() ? (
-        <Panel className="mb-6" style={{ border: "1px solid rgba(0,216,242,0.3)", background: "rgba(0,216,242,0.05)" }}>
-          <div className="grid gap-4 sm:grid-cols-[1fr,auto] sm:items-end">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Category">
-                <select style={inputStyle} value={category} onChange={(e) => setCategory(e.target.value)}>
-                  {DOC_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
-                </select>
-              </Field>
-              <Field label="File">
-                <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm text-muted" />
-              </Field>
-            </div>
-            <button type="button" disabled={busy || !file} onClick={() => void upload()} className="btn btn-primary" style={dim(busy || !file)}>
-              {busy ? "Uploading…" : "↑ Upload"}
-            </button>
-          </div>
-          {err && <p className="mt-3 text-sm text-red-300">{err}</p>}
-        </Panel>
-      ) : (
-        <EmptyState>
-          File uploads come online once cloud storage is configured (set
-          <span className="text-paper"> NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET</span>). Documents shared by our team still appear below.
-        </EmptyState>
-      )}
-
-      {data.documents.length === 0 ? (
-        <EmptyState>No documents yet. Files you upload — and files we share with you — will live here.</EmptyState>
+      <SectionHeading title="Documents & Files" hint="POs, artwork, and proofs across your jobs." />
+      {docs.length === 0 ? (
+        <EmptyState>Files you upload with a PO — and proofs we share — collect here.</EmptyState>
       ) : (
         <div className="grid gap-2">
-          {data.documents.map((d) => (
-            <a
-              key={d.id}
-              href={d.url}
-              target="_blank"
-              rel="noopener noreferrer"
+          {docs.map((d, i) => (
+            <a key={i} href={d.url} target="_blank" rel="noopener noreferrer"
               className="flex items-center justify-between gap-3 rounded-xl px-4 py-3 transition hover:bg-white/5"
-              style={{ border: "1px solid rgba(255,255,255,0.1)" }}
-            >
+              style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
               <div className="flex items-center gap-3">
                 <span className="text-lg">📄</span>
                 <div>
                   <span className="block text-sm font-bold text-paper">{d.name}</span>
-                  <span className="block text-xs text-muted">
-                    {CATEGORY_LABELS[d.category] ?? d.category} · {d.uploadedBy === "team" ? "Microflex" : "You"} · {fmtDate(d.createdAt)}
-                    {d.size ? ` · ${fmtBytes(d.size)}` : ""}
-                  </span>
+                  <span className="block text-xs text-muted">{d.tag} · {d.ctx}{d.at ? ` · ${fmtDate(d.at)}` : ""}</span>
                 </div>
               </div>
               <span className="text-xs font-bold text-cyan">Open ↗</span>
             </a>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ============ APPROVALS ============ */
-
-export function Approvals({
-  data,
-  user,
-  refresh,
-}: {
-  data: PortalData;
-  user: User;
-  refresh: () => void;
-}) {
-  const [openFor, setOpenFor] = useState<string | null>(null);
-  const [notes, setNotes] = useState("");
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  const pending = data.approvals.filter((a) => a.status === "pending");
-  const decided = data.approvals.filter((a) => a.status !== "pending");
-
-  async function act(a: PortalApproval, decision: "approved" | "changes_requested", n?: string) {
-    setBusyId(a.id);
-    setErr(null);
-    try {
-      const token = await user.getIdToken();
-      const res = await actOnApproval(token, a.id, decision, n);
-      if (!res.ok) { setErr(res.error ?? "Could not submit."); return; }
-      setOpenFor(null);
-      setNotes("");
-      refresh();
-    } catch {
-      setErr("Could not submit — please try again.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  function Card({ a }: { a: PortalApproval }) {
-    return (
-      <Panel>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <span className="block text-base font-bold text-paper">{a.title}</span>
-            {a.description && <p className="mt-1 text-sm text-muted">{a.description}</p>}
-            <p className="mt-1 text-xs text-muted-dark">Sent {fmtDate(a.createdAt)}</p>
-          </div>
-          <StatusChip status={a.status} label={a.statusLabel} />
-        </div>
-        {a.url && (
-          <a href={a.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs font-bold text-cyan underline">
-            📎 View file
-          </a>
-        )}
-        {a.status === "pending" ? (
-          <>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button type="button" disabled={busyId === a.id} onClick={() => void act(a, "approved")} className="btn btn-primary" style={{ minHeight: 40, fontSize: 13, ...dim(busyId === a.id) }}>
-                ✓ Approve
-              </button>
-              <button type="button" disabled={busyId === a.id} onClick={() => setOpenFor(openFor === a.id ? null : a.id)} className="btn btn-secondary" style={{ minHeight: 40, fontSize: 13 }}>
-                ✎ Request Changes
-              </button>
-            </div>
-            {openFor === a.id && (
-              <div className="mt-4 rounded-2xl p-4" style={{ border: "1px solid rgba(255,196,0,0.35)", background: "rgba(255,196,0,0.06)" }}>
-                <Field label="What needs to change?">
-                  <textarea style={{ ...inputStyle, minHeight: 80, resize: "vertical" }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Describe the revisions you need." autoFocus />
-                </Field>
-                <div className="mt-3 flex gap-2">
-                  <button type="button" disabled={busyId === a.id || !notes.trim()} onClick={() => void act(a, "changes_requested", notes.trim())} className="btn btn-primary" style={{ minHeight: 40, fontSize: 13, ...dim(busyId === a.id || !notes.trim()) }}>
-                    Send Change Request
-                  </button>
-                  <button type="button" onClick={() => setOpenFor(null)} className="btn btn-dark" style={{ minHeight: 40, fontSize: 13 }}>Cancel</button>
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
-          a.decisionNotes && <p className="mt-3 text-xs text-muted">Your note: {a.decisionNotes}</p>
-        )}
-      </Panel>
-    );
-  }
-
-  return (
-    <div className="grid gap-8">
-      {err && <p className="text-sm text-red-300">{err}</p>}
-      <div>
-        <SectionHeading title="Awaiting Your Approval" hint="Proofs, quotes, and POs that need your sign-off." />
-        {pending.length === 0 ? (
-          <EmptyState>Nothing waiting on you right now. 🎉</EmptyState>
-        ) : (
-          <div className="grid gap-3">{pending.map((a) => <Card key={a.id} a={a} />)}</div>
-        )}
-      </div>
-      {decided.length > 0 && (
-        <div>
-          <SectionHeading title="Decided" />
-          <div className="grid gap-3">{decided.map((a) => <Card key={a.id} a={a} />)}</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ============ NOTIFICATIONS ============ */
-
-export function Notifications({
-  data,
-  user,
-  refresh,
-  go,
-}: {
-  data: PortalData;
-  user: User;
-  refresh: () => void;
-  go: (s: SectionKey) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-
-  async function markAll() {
-    setBusy(true);
-    try {
-      const token = await user.getIdToken();
-      await markNotificationsRead(token);
-      refresh();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div>
-      <SectionHeading
-        title="Notifications"
-        action={
-          data.badges.unreadNotifications > 0 ? (
-            <button type="button" disabled={busy} onClick={() => void markAll()} className="btn btn-secondary" style={{ minHeight: 38, fontSize: 13, ...dim(busy) }}>
-              Mark all read
-            </button>
-          ) : undefined
-        }
-      />
-      {data.notifications.length === 0 ? (
-        <EmptyState>You&apos;re all caught up. Updates about orders, invoices, and approvals will appear here.</EmptyState>
-      ) : (
-        <div className="grid gap-2">
-          {data.notifications.map((n) => (
-            <button
-              key={n.id}
-              type="button"
-              onClick={() => n.section && go(n.section as SectionKey)}
-              className="flex items-start justify-between gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-white/5"
-              style={{ border: `1px solid ${n.read ? "rgba(255,255,255,0.08)" : "rgba(0,216,242,0.35)"}`, background: n.read ? "transparent" : "rgba(0,216,242,0.04)" }}
-            >
-              <div className="flex items-start gap-3">
-                {!n.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: "#34e3f5" }} />}
-                <div>
-                  <span className="block text-sm font-bold text-paper">{n.title}</span>
-                  {n.body && <span className="mt-0.5 block text-xs text-muted">{n.body}</span>}
-                </div>
-              </div>
-              <span className="whitespace-nowrap text-xs text-muted-dark">{timeAgo(n.createdAt)}</span>
-            </button>
           ))}
         </div>
       )}
