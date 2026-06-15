@@ -13,6 +13,7 @@ import {
   type PortalData,
   type PortalQuote,
   type PortalSalesOrder,
+  type PortalJob,
   type PortalFile,
 } from "@/app/actions/portal";
 import {
@@ -213,35 +214,126 @@ function FullTracker({ stages, current }: { stages: string[]; current: number })
 
 /* ============================ STATUS ============================ */
 
-export function Status({ data }: { data: PortalData }) {
+export function Status({ data, go }: { data: PortalData; go: (s: SectionKey) => void }) {
   const labels = data.stages.map((s) => s.label);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const openJob = data.jobs.find((j) => j.quoteId === openId) ?? null;
+  const openQuote = openJob ? data.quotes.find((q) => q.id === openJob.quoteId) : undefined;
+  const openSo = openJob ? data.salesOrders.find((s) => s.quoteId === openJob.quoteId) : undefined;
+
   return (
     <div>
-      <SectionHeading title="Order Status" hint="Every job, from quote to delivery." />
+      <SectionHeading title="Order Status" hint="Click any job for full details, documents, and next steps." />
       {data.jobs.length === 0 ? (
         <EmptyState>No jobs in progress. Once we send you a quote, you can track it here end-to-end.</EmptyState>
       ) : (
         <div className="grid gap-4">
           {data.jobs.map((j) => (
-            <Panel key={j.quoteId}>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <span className="block text-sm font-bold text-paper">{j.title}</span>
-                  <span className="font-mono text-xs text-muted">
-                    {j.quoteNum}{j.soNum ? ` · ${j.soNum}` : ""}
+            <button key={j.quoteId} type="button" onClick={() => setOpenId(j.quoteId)} className="block w-full text-left transition hover:-translate-y-0.5">
+              <Panel>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="block text-sm font-bold text-paper">{j.title}</span>
+                    <span className="font-mono text-xs text-muted">
+                      {j.quoteNum}{j.soNum ? ` · ${j.soNum}` : ""}
+                    </span>
+                  </div>
+                  <span className="text-xs font-extrabold uppercase tracking-widest" style={{ color: "#34e3f5" }}>
+                    {j.stageLabel}
                   </span>
                 </div>
-                <span className="text-xs font-extrabold uppercase tracking-widest" style={{ color: "#34e3f5" }}>
-                  {j.stageLabel}
-                </span>
-              </div>
-              <FullTracker stages={labels} current={j.stageIndex} />
-              <p className="mt-3 text-xs text-muted-dark">Updated {timeAgo(j.updatedAt)}</p>
-            </Panel>
+                <FullTracker stages={labels} current={j.stageIndex} />
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-xs text-muted-dark">Updated {timeAgo(j.updatedAt)}</span>
+                  <span className="text-xs font-bold text-cyan">Open job →</span>
+                </div>
+              </Panel>
+            </button>
           ))}
         </div>
       )}
+      {openJob && (
+        <JobDetailModal
+          job={openJob}
+          quote={openQuote}
+          so={openSo}
+          stages={labels}
+          go={(s) => { setOpenId(null); go(s); }}
+          onClose={() => setOpenId(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function JobDetailModal({
+  job, quote, so, stages, go, onClose,
+}: {
+  job: PortalJob;
+  quote?: PortalQuote;
+  so?: PortalSalesOrder;
+  stages: string[];
+  go: (s: SectionKey) => void;
+  onClose: () => void;
+}) {
+  const needsPO = quote?.canSubmitPO;
+  const needsSign = so && so.status === "sent" && !so.clientSignature;
+  const needsArtwork = so && !so.artworkApproved && so.artFiles.length > 0 && so.status !== "pending";
+
+  const facts: [string, string][] = [];
+  if (quote?.company) facts.push(["Company", quote.company]);
+  if (quote?.specs) facts.push(["Spec", quote.specs]);
+  if (so?.selectedQty) facts.push(["Quantity", `${so.selectedQty.toLocaleString()} units`]);
+  if (so?.total) facts.push(["Order value", fmtMoney(so.total)]);
+  if (so?.poNumber || quote?.poNumber) facts.push(["PO #", String(so?.poNumber || quote?.poNumber)]);
+  if (quote?.payTerms) facts.push(["Terms", quote.payTerms]);
+
+  return (
+    <Modal title={`${job.soNum || job.quoteNum} — ${job.stageLabel}`} onClose={onClose}>
+      <div className="grid gap-6">
+        <div>
+          <span className="text-lg font-bold text-paper">{job.title}</span>
+          <p className="font-mono text-xs text-muted">{job.quoteNum}{job.soNum ? ` · ${job.soNum}` : ""}</p>
+        </div>
+
+        <FullTracker stages={stages} current={job.stageIndex} />
+
+        {facts.length > 0 && (
+          <dl className="grid gap-4 sm:grid-cols-2">
+            {facts.map(([k, v]) => (
+              <div key={k}>
+                <dt className="text-xs font-extrabold uppercase tracking-widest text-muted">{k}</dt>
+                <dd className="mt-0.5 text-sm text-paper">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+
+        {/* documents */}
+        <div>
+          <span className="mb-2 block text-xs font-extrabold uppercase tracking-widest text-muted">Documents</span>
+          <div className="grid gap-3">
+            {quote?.quotePdfUrl && <PdfFrame url={quote.quotePdfUrl} title="Microflex Quote (PDF)" />}
+            {so?.pdfUrl && <PdfFrame url={so.pdfUrl} title="Sales Order (PDF)" />}
+            {(quote?.poFiles ?? []).map((f, i) => <FilePreview key={`po${i}`} file={f} label="PO" />)}
+            {(so?.artFiles ?? quote?.artFiles ?? []).map((f, i) => <FilePreview key={`art${i}`} file={f} label={so ? "Proof" : "Artwork"} />)}
+            {!quote?.quotePdfUrl && !so?.pdfUrl && (quote?.poFiles ?? []).length === 0 && (so?.artFiles ?? []).length === 0 && (
+              <p className="text-xs text-muted">Documents for this job will appear here as they&apos;re added.</p>
+            )}
+          </div>
+        </div>
+
+        {/* contextual next steps */}
+        <div className="flex flex-wrap gap-2 border-t pt-5" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+          {needsPO && <button type="button" onClick={() => go("quotes")} className="btn btn-primary" style={{ minHeight: 40, fontSize: 13 }}>Review &amp; submit PO</button>}
+          {needsSign && <button type="button" onClick={() => go("orders")} className="btn btn-primary" style={{ minHeight: 40, fontSize: 13 }}>Sign order</button>}
+          {needsArtwork && <button type="button" onClick={() => go("orders")} className="btn btn-primary" style={{ minHeight: 40, fontSize: 13 }}>Approve artwork</button>}
+          <button type="button" onClick={() => go("quotes")} className="btn btn-secondary" style={{ minHeight: 40, fontSize: 13 }}>Open quote</button>
+          {so && <button type="button" onClick={() => go("orders")} className="btn btn-secondary" style={{ minHeight: 40, fontSize: 13 }}>Open order</button>}
+          <button type="button" onClick={() => go("messages")} className="btn btn-secondary" style={{ minHeight: 40, fontSize: 13 }}>Message team</button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

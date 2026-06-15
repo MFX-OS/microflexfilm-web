@@ -11,6 +11,7 @@ const groups: NavGroup[] = [
   {
     label: "Build My Spec",
     links: [
+      { href: "/configurator", label: "3D Packaging Studio" },
       { href: "/packaging-spec-builder", label: "Packaging Spec Builder" },
       { href: "/calculators#format-finder", label: "Format Finder" },
       { href: "/calculators#barrier-selector", label: "Barrier Selector" },

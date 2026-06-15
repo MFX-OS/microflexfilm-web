@@ -186,7 +186,7 @@ export default function PortalApp() {
           {section === "overview" && <Overview data={data} go={setSection} />}
           {section === "quotes" && <Quotes data={data} user={user} refresh={() => void refresh()} />}
           {section === "orders" && <Orders data={data} user={user} refresh={() => void refresh()} />}
-          {section === "status" && <Status data={data} />}
+          {section === "status" && <Status data={data} go={setSection} />}
           {section === "messages" && <Messages data={data} user={user} refresh={() => void refresh()} />}
           {section === "documents" && <Documents data={data} />}
           {section === "account" && <Account data={data} user={user} refresh={() => void refresh()} />}
