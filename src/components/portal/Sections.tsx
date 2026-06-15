@@ -818,13 +818,14 @@ export function Messages({ data, user, refresh }: { data: PortalData; user: User
 
 /* ============================ ACCOUNT (CRM) ============================ */
 
-const EDIT_FIELDS: { key: "company" | "industry" | "contact" | "phone" | "billTo" | "shipTo" | "notes"; label: string; multiline?: boolean }[] = [
+const EDIT_FIELDS: { key: "company" | "industry" | "contact" | "phone" | "billTo" | "shipTo" | "notes" | "brandColors"; label: string; multiline?: boolean }[] = [
   { key: "company", label: "Company name" },
   { key: "industry", label: "Industry" },
   { key: "contact", label: "Primary contact" },
   { key: "phone", label: "Phone" },
   { key: "billTo", label: "Billing address", multiline: true },
   { key: "shipTo", label: "Shipping address", multiline: true },
+  { key: "brandColors", label: "Brand colors (comma-separated hex, e.g. #00d8f2, #06121d)" },
   { key: "notes", label: "Notes / special instructions", multiline: true },
 ];
 
@@ -832,7 +833,7 @@ export function Account({ data, user, refresh }: { data: PortalData; user: User;
   const p = data.profile;
   const blank = () => ({
     company: p.company, industry: p.industry, contact: p.contact, phone: p.phone,
-    billTo: p.billTo, shipTo: p.shipTo, notes: p.notes,
+    billTo: p.billTo, shipTo: p.shipTo, notes: p.notes, brandColors: p.brandColors,
   });
   const [form, setForm] = useState<Record<string, string>>(blank);
   const [editing, setEditing] = useState(false);
@@ -858,6 +859,33 @@ export function Account({ data, user, refresh }: { data: PortalData; user: User;
 
   const pending = data.profileChanges.filter((c) => c.status === "pending");
   const decided = data.profileChanges.filter((c) => c.status !== "pending");
+
+  // Brand colors → swatches
+  const colors = (p.brandColors || "").split(/[,\s]+/).map((c) => c.trim()).filter(Boolean);
+
+  // Financial snapshot (derived from sales orders)
+  const sos = data.salesOrders;
+  const lifetime = sos.reduce((s, o) => s + (o.total || 0), 0);
+  const activeVal = sos.filter((o) => !["closed", "cancelled", "rejected"].includes(o.status)).reduce((s, o) => s + (o.total || 0), 0);
+  const terms = data.quotes[0]?.payTerms || "Net 30";
+
+  // History timeline (quotes + orders)
+  const history: { when: string; ref: string; label: string }[] = [
+    ...data.quotes.map((q) => ({ when: q.updatedAt, ref: `${q.quoteNum}${q.rev ? `-${q.rev}` : ""}`, label: `Quote · ${q.statusLabel}` })),
+    ...sos.map((o) => ({ when: o.createdAt, ref: o.soNum, label: `Order · ${o.statusLabel}` })),
+  ].sort((a, b) => new Date(b.when || 0).getTime() - new Date(a.when || 0).getTime());
+
+  // Key files
+  const files: { name: string; url: string; tag: string }[] = [];
+  data.quotes.forEach((q) => {
+    if (q.quotePdfUrl) files.push({ name: `Quote ${q.quoteNum} (PDF)`, url: q.quotePdfUrl, tag: "Quote" });
+    q.poFiles.forEach((f) => files.push({ name: f.name, url: f.url, tag: "PO" }));
+    q.artFiles.forEach((f) => files.push({ name: f.name, url: f.url, tag: "Artwork" }));
+  });
+  sos.forEach((o) => {
+    if (o.pdfUrl) files.push({ name: `Sales Order ${o.soNum} (PDF)`, url: o.pdfUrl, tag: "Order" });
+    o.artFiles.forEach((f) => files.push({ name: f.name, url: f.url, tag: "Proof" }));
+  });
 
   return (
     <div className="grid gap-8">
@@ -917,6 +945,70 @@ export function Account({ data, user, refresh }: { data: PortalData; user: User;
                 Cancel
               </button>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Brand colors */}
+      <div>
+        <SectionHeading title="Brand Colors" hint="So your packaging stays on-brand. Add yours via Edit details." />
+        {colors.length === 0 ? (
+          <EmptyState>No brand colors on file yet. Add them in “Edit details” as comma-separated hex (e.g. #00d8f2, #06121d).</EmptyState>
+        ) : (
+          <div className="flex flex-wrap gap-3">
+            {colors.map((c, i) => (
+              <div key={i} className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
+                <span className="h-7 w-7 rounded-md" style={{ background: c, border: "1px solid rgba(255,255,255,0.25)" }} />
+                <span className="font-mono text-xs text-paper">{c}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Financial snapshot */}
+      <div>
+        <SectionHeading title="Financial Snapshot" hint="Based on your orders with Microflex." />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Panel><div className="text-2xl font-black text-paper">{fmtMoney(lifetime)}</div><div className="mt-1 text-xs font-extrabold uppercase tracking-widest text-muted">Lifetime Orders</div></Panel>
+          <Panel><div className="text-2xl font-black text-cyan">{fmtMoney(activeVal)}</div><div className="mt-1 text-xs font-extrabold uppercase tracking-widest text-muted">Active Order Value</div></Panel>
+          <Panel><div className="text-2xl font-black text-paper">{terms}</div><div className="mt-1 text-xs font-extrabold uppercase tracking-widest text-muted">Payment Terms</div></Panel>
+        </div>
+      </div>
+
+      {/* History */}
+      <div>
+        <SectionHeading title="History" hint="Your quotes and orders over time." />
+        {history.length === 0 ? (
+          <EmptyState>No activity yet — your quotes and orders will appear here.</EmptyState>
+        ) : (
+          <div className="grid gap-2">
+            {history.slice(0, 15).map((h, i) => (
+              <div key={i} className="flex items-center justify-between gap-3 rounded-xl px-4 py-3" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-xs text-cyan">{h.ref}</span>
+                  <span className="text-sm text-paper">{h.label}</span>
+                </div>
+                <span className="text-xs text-muted-dark">{h.when ? timeAgo(h.when) : ""}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Key files */}
+      <div>
+        <SectionHeading title="Key Files" hint="Quotes, POs, artwork, and proofs in one place." />
+        {files.length === 0 ? (
+          <EmptyState>Files from your quotes and orders will collect here.</EmptyState>
+        ) : (
+          <div className="grid gap-2">
+            {files.map((f, i) => (
+              <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-3 rounded-xl px-4 py-3 transition hover:bg-white/5" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+                <span className="flex items-center gap-3"><span className="text-lg">📄</span><span className="text-sm font-bold text-paper">{f.name}</span></span>
+                <span className="whitespace-nowrap text-xs font-bold text-cyan">{f.tag} · Open ↗</span>
+              </a>
+            ))}
           </div>
         )}
       </div>

@@ -115,6 +115,7 @@ export type CustomerProfile = {
   billTo: string;
   shipTo: string;
   notes: string;
+  brandColors: string; // comma-separated hex values, client-owned
   found: boolean; // a CRM record (or quote-seeded values) exists
 };
 
@@ -149,7 +150,7 @@ export type PortalData = {
 /** The CRM fields a client may propose changes to (whitelist).
  *  Internal only — a "use server" module may export only async functions, so
  *  the client UI keeps its own copy of this list. */
-const PROFILE_FIELDS = ["company", "industry", "contact", "phone", "billTo", "shipTo", "notes"] as const;
+const PROFILE_FIELDS = ["company", "industry", "contact", "phone", "billTo", "shipTo", "notes", "brandColors"] as const;
 type ProfileField = (typeof PROFILE_FIELDS)[number];
 const PROFILE_LABELS: Record<ProfileField, string> = {
   company: "Company name",
@@ -159,7 +160,11 @@ const PROFILE_LABELS: Record<ProfileField, string> = {
   billTo: "Billing address",
   shipTo: "Shipping address",
   notes: "Notes / instructions",
+  brandColors: "Brand colors",
 };
+
+const brandColorsOf = (v: unknown): string =>
+  Array.isArray(v) ? v.map((x) => String(x)).join(", ") : v ? String(v) : "";
 
 /* ----------------------------- labels ----------------------------------- */
 
@@ -357,7 +362,11 @@ export async function getPortalData(idToken: string): Promise<PortalData> {
       poSelectedTotal: data.poSelectedTotal != null ? num(data.poSelectedTotal) : undefined,
       poFiles: mapFiles(data.poFiles),
       artFiles: mapFiles(data.artFiles),
-      quotePdfUrl: data.driveLink ? String(data.driveLink) : undefined,
+      quotePdfUrl: data.portalQuotePdfUrl
+        ? String(data.portalQuotePdfUrl)
+        : data.driveLink
+          ? String(data.driveLink)
+          : undefined,
       createdAt: toIso(data.createdAt),
       updatedAt: toIso(data.updatedAt ?? data.createdAt),
       canSubmitPO: status === "sent",
@@ -475,6 +484,7 @@ export async function getPortalData(idToken: string): Promise<PortalData> {
         billTo: pstr(cust.billTo, cust.billToAddress),
         shipTo: pstr(cust.shipTo),
         notes: pstr(cust.notes),
+        brandColors: brandColorsOf(cust.brandColors),
         found: true,
       }
     : {
@@ -486,6 +496,7 @@ export async function getPortalData(idToken: string): Promise<PortalData> {
         billTo: pstr(seed?.billTo),
         shipTo: pstr(seed?.shipTo, seed?.cityState),
         notes: "",
+        brandColors: "",
         found: Boolean(seed),
       };
 
@@ -887,6 +898,7 @@ export async function submitProfileChange(
   const cur = (custDoc?.data() ?? {}) as Record<string, unknown>;
   const currentVal = (k: ProfileField): string => {
     if (k === "billTo") return String(cur.billTo ?? cur.billToAddress ?? "");
+    if (k === "brandColors") return brandColorsOf(cur.brandColors);
     return String(cur[k] ?? "");
   };
 

@@ -41,7 +41,7 @@ const NAV: { key: SectionKey; label: string; icon: string; badge?: keyof PortalD
   { key: "status", label: "Status", icon: "📍", badge: "inProduction" },
   { key: "messages", label: "Messages", icon: "💬", badge: "unreadMessages" },
   { key: "documents", label: "Documents", icon: "📁" },
-  { key: "account", label: "Account", icon: "🏢", badge: "profilePending" },
+  { key: "account", label: "My Company", icon: "🏢", badge: "profilePending" },
 ];
 
 /* ============ main app ============ */
