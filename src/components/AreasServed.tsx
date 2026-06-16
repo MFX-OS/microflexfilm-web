@@ -9,7 +9,7 @@ export default function AreasServed() {
       <div className="container-x">
         <div className="kicker mb-3">Where we serve</div>
         <h2 className="display text-[clamp(28px,3.6vw,50px)] text-paper">
-          Riverside-made. Shipped nationwide.
+          California-made. Shipped nationwide.
         </h2>
         <p className="mt-4 max-w-[780px] text-lg leading-relaxed text-muted">
           Microflex Film manufactures flexible packaging in Riverside, California — serving brands
