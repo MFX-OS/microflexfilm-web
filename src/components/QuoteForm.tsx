@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { submitInquiry } from "@/app/actions/submitInquiry";
+import NewsletterSignup from "./NewsletterSignup";
 
 const ACCEPT = ".ai,.pdf,.psd,.png,.jpg,.jpeg,.tif,.tiff,.eps,.zip,.svg";
 const MAX_FILES = 3;
@@ -99,6 +100,22 @@ export default function QuoteForm() {
               total), or paste a link from Google Drive, Dropbox, or WeTransfer for larger
               files.
             </p>
+
+            {/* Email-list capture */}
+            <div
+              className="mt-8 rounded-3xl p-6"
+              style={{ border: "1px solid rgba(0,216,242,0.22)", background: "rgba(0,216,242,0.05)" }}
+            >
+              <div className="kicker mb-2">Stay in the loop</div>
+              <h3 className="text-xl font-black text-paper">Join our email list.</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                Occasional packaging tips, new capabilities, and resources — no spam, unsubscribe
+                anytime.
+              </p>
+              <div className="mt-4">
+                <NewsletterSignup />
+              </div>
+            </div>
           </div>
 
           <div
