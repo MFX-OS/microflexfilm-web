@@ -3,6 +3,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import nodemailer from "nodemailer";
 import { adminDb } from "@/lib/firebase-admin";
+import { ipRateLimit } from "@/lib/rateLimit";
 
 /* Email capture for the newsletter / lead magnets. Stores subscribers in
    Firestore (deduped by email) and notifies the team. No external ESP needed. */
@@ -15,6 +16,9 @@ export async function subscribe(
 ): Promise<{ ok: boolean; error?: string }> {
   const e = (email || "").trim().toLowerCase();
   if (!EMAIL_RE.test(e)) return { ok: false, error: "Please enter a valid email address." };
+  if (!(await ipRateLimit("subscribe", 10, 60000))) {
+    return { ok: false, error: "Too many requests — please wait a moment and try again." };
+  }
 
   try {
     await adminDb.collection("subscribers").doc(e).set(

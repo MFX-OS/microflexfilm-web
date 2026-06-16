@@ -2,6 +2,7 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";
+import { ipRateLimit } from "@/lib/rateLimit";
 
 /* High-intent "Mad Libs" funnel lead. Stores every lead in Firestore (so none
    are lost) and forwards to the sales webhook. The webhook URL stays server-side
@@ -26,6 +27,11 @@ export async function submitLead(input: LeadInput): Promise<{ ok: boolean; error
   const answers = input.answers || {};
   if (!looksLikeBot && Object.keys(answers).length === 0) {
     return { ok: false, error: "Please complete the form." };
+  }
+
+  // IP rate limit (skip the check for obvious bots — they're dropped anyway).
+  if (!looksLikeBot && !(await ipRateLimit("lead", 8, 60000))) {
+    return { ok: false, error: "Too many submissions — please wait a moment and try again." };
   }
 
   const lead = {
