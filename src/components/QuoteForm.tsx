@@ -101,20 +101,45 @@ export default function QuoteForm() {
               files.
             </p>
 
-            {/* Email-list capture */}
+            {/* Email-list capture — primary callout with a free reward */}
             <div
-              className="mt-8 rounded-3xl p-6"
-              style={{ border: "1px solid rgba(0,216,242,0.22)", background: "rgba(0,216,242,0.05)" }}
+              className="mt-8 rounded-3xl p-7"
+              style={{
+                border: "1px solid rgba(0,216,242,0.4)",
+                background:
+                  "radial-gradient(circle at 90% 0%, rgba(0,216,242,0.16), transparent 45%), linear-gradient(165deg, rgba(0,216,242,0.08), rgba(255,255,255,0.02))",
+              }}
             >
-              <div className="kicker mb-2">Stay in the loop</div>
-              <h3 className="text-xl font-black text-paper">Join our email list.</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted">
-                Occasional packaging tips, new capabilities, and resources — no spam, unsubscribe
-                anytime.
+              <div className="kicker mb-2">Free Packaging Intel</div>
+              <h3 className="text-2xl font-black leading-tight text-paper">
+                Quote smarter.<br />Spend less on packaging.
+              </h3>
+              <p className="mt-3 text-sm leading-relaxed text-muted">
+                Join brands getting practical packaging guidance — the same thinking our team uses
+                to spec jobs. Subscribe and we&rsquo;ll send you our{" "}
+                <span className="font-bold text-paper">Quote-Ready Packaging Checklist</span> free.
               </p>
-              <div className="mt-4">
-                <NewsletterSignup />
+              <ul className="mt-4 grid gap-2">
+                {[
+                  "Cut cost without cutting protection",
+                  "Match the right structure to your product & shelf life",
+                  "First look at new formats, finishes & resources",
+                ].map((b) => (
+                  <li key={b} className="flex items-start gap-2 text-sm text-paper">
+                    <span className="mt-0.5 text-cyan">✓</span>
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-5">
+                <NewsletterSignup
+                  source="quote-section"
+                  reward={{ label: "Download your checklist →", href: "/downloads/microflex-quote-checklist.pdf" }}
+                />
               </div>
+              <p className="mt-3 text-[11px] text-muted-dark">
+                A few emails a year, all signal. No spam — unsubscribe in one click.
+              </p>
             </div>
           </div>
 

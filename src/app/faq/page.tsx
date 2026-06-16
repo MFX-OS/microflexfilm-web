@@ -71,10 +71,20 @@ const faqs: Faq[] = [
 ];
 
 export default function FaqPage() {
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
   return (
     <>
       <Header />
       <main id="top">
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
         <section className="grid-backdrop relative py-14 md:py-20">
           <div className="container-x">
             <div className="kicker mb-3">FAQs</div>

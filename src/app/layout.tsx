@@ -84,17 +84,23 @@ const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? "G-JSN4SZ1J2Z";
 // Microsoft Clarity heatmaps/session replay — opt-in via env.
 const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID;
 
-// Sitewide structured data (Organization) for rich search results.
+// Sitewide structured data — LocalBusiness for local + industry search.
+// TODO: confirm openingHours, add real social/profile URLs to sameAs, and
+// fine-tune geo coordinates if needed.
 const ORG_JSONLD = {
   "@context": "https://schema.org",
-  "@type": "Organization",
+  "@type": ["Organization", "LocalBusiness"],
+  "@id": "https://microflexfilm.com/#business",
   name: "Microflex Film Corporation",
+  alternateName: "Microflex Film",
   url: "https://microflexfilm.com",
   logo: "https://microflexfilm.com/images/microflex-logo-white.png",
+  image: "https://microflexfilm.com/opengraph-image",
   email: "info@microflexfilm.com",
   telephone: "+1-909-360-9066",
+  priceRange: "$$",
   description:
-    "Flexible packaging, printed film, labels, pouches, sachets, stick packs, and shrink sleeves. SQF certified, solar powered, manufactured in the USA.",
+    "Flexible packaging manufacturer — printed film, rollstock, pouches, labels, sachets, stick packs, and shrink sleeves. SQF certified, solar powered, manufactured in the USA. Serving Riverside, the Inland Empire, Southern California, and brands nationwide.",
   address: {
     "@type": "PostalAddress",
     streetAddress: "4130 Garner Rd.",
@@ -103,6 +109,26 @@ const ORG_JSONLD = {
     postalCode: "92501",
     addressCountry: "US",
   },
+  geo: { "@type": "GeoCoordinates", latitude: 33.9956, longitude: -117.3739 },
+  areaServed: [
+    { "@type": "City", name: "Riverside" },
+    { "@type": "AdministrativeArea", name: "Inland Empire" },
+    { "@type": "AdministrativeArea", name: "Southern California" },
+    { "@type": "Country", name: "United States" },
+  ],
+  openingHoursSpecification: [
+    {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      opens: "08:00",
+      closes: "17:00",
+    },
+  ],
+  sameAs: [] as string[],
+  knowsAbout: [
+    "flexible packaging", "stand-up pouches", "printed rollstock", "shrink sleeves",
+    "labels", "stick packs", "sachets", "barrier films", "custom packaging",
+  ],
 };
 
 export default function RootLayout({

@@ -11,6 +11,7 @@ import SampleKit from "@/components/SampleKit";
 import Resources from "@/components/Resources";
 import LeadMagnet from "@/components/LeadMagnet";
 import ClientCenter from "@/components/ClientCenter";
+import AreasServed from "@/components/AreasServed";
 import QuoteForm from "@/components/QuoteForm";
 import ContactBlock from "@/components/ContactBlock";
 import Footer from "@/components/Footer";
@@ -32,6 +33,7 @@ export default function HomePage() {
         <Resources />
         <LeadMagnet />
         <ClientCenter />
+        <AreasServed />
         <QuoteForm />
         <ContactBlock />
       </main>

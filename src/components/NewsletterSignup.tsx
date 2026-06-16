@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { subscribe } from "@/app/actions/subscribe";
 
-export default function NewsletterSignup() {
+export default function NewsletterSignup({
+  source = "newsletter",
+  reward,
+}: {
+  source?: string;
+  reward?: { label: string; href: string };
+}) {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "busy" | "done">("idle");
   const [err, setErr] = useState<string | null>(null);
@@ -12,13 +18,22 @@ export default function NewsletterSignup() {
     e.preventDefault();
     setState("busy");
     setErr(null);
-    const r = await subscribe(email, "newsletter");
+    const r = await subscribe(email, source);
     if (r.ok) setState("done");
     else { setErr(r.error ?? "Please try again."); setState("idle"); }
   }
 
   if (state === "done") {
-    return <p className="text-sm font-bold text-cyan">✓ You&rsquo;re subscribed — thanks!</p>;
+    return (
+      <div>
+        <p className="text-sm font-bold text-cyan">✓ You&rsquo;re in — welcome aboard!</p>
+        {reward && (
+          <a href={reward.href} download className="btn btn-primary mt-3 w-full">
+            {reward.label}
+          </a>
+        )}
+      </div>
+    );
   }
 
   return (
