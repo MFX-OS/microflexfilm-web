@@ -85,12 +85,3 @@ env:
       - BUILD
       - RUNTIME
 
-  # AI packaging assistant (Anthropic Claude).
-  # To enable, create the secret (the CLI will add its env reference here and
-  # grant the backend access automatically):
-  #   firebase apphosting:secrets:set ANTHROPIC_API_KEY
-  # Until then the assistant degrades gracefully (points users to a quote).
-  - variable: ANTHROPIC_MODEL
-    value: "claude-haiku-4-5-20251001"
-    availability:
-      - RUNTIME
