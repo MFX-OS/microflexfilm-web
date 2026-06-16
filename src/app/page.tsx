@@ -2,6 +2,7 @@ import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import StartHere from "@/components/StartHere";
 import Capabilities from "@/components/Capabilities";
+import StudioTeaser from "@/components/StudioTeaser";
 import Showcase from "@/components/Showcase";
 import Process from "@/components/Process";
 import Quality from "@/components/Quality";
@@ -20,6 +21,7 @@ export default function HomePage() {
         <Hero />
         <StartHere />
         <Capabilities />
+        <StudioTeaser />
         <Showcase />
         <Process />
         <Quality />
