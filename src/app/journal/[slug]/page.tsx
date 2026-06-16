@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import QuoteChecklist from "@/components/QuoteChecklist";
+import BreadcrumbsJsonLd from "@/components/BreadcrumbsJsonLd";
 import { journalArticles, getJournalArticle } from "@/data/journalArticles";
 
 export function generateStaticParams() {
@@ -48,6 +49,11 @@ export default async function JournalArticlePage({
   return (
     <>
       <Header />
+      <BreadcrumbsJsonLd items={[
+        { name: "Home", url: "https://microflexfilm.com" },
+        { name: "Journal", url: "https://microflexfilm.com/journal" },
+        { name: a.title, url: `https://microflexfilm.com/journal/${a.slug}` },
+      ]} />
       <main id="top">
         <article>
           <section className="grid-backdrop relative py-14 md:py-20">

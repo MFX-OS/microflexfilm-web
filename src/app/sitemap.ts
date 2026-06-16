@@ -4,6 +4,7 @@ import { industryPages } from "@/data/industryPages";
 import { applicationPages } from "@/data/applicationPages";
 import { journalArticles } from "@/data/journalArticles";
 import { caseStudies } from "@/data/caseStudies";
+import { serviceAreas } from "@/data/serviceAreas";
 
 const BASE = "https://microflexfilm.com";
 
@@ -18,7 +19,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "", "/about", "/capabilities", "/industries", "/applications", "/journal",
     "/materials", "/printing", "/artwork-guidelines", "/calculators",
     "/packaging-spec-builder", "/configurator", "/faq", "/terms",
-    "/case-studies", "/accessibility",
+    "/case-studies", "/accessibility", "/service-areas",
   ];
   const staticRoutes: MetadataRoute.Sitemap = staticPaths.map((p) => ({
     url: `${BASE}${p}`,
@@ -33,6 +34,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...uniqueSlugs(applicationPages).map((s) => ({ url: `${BASE}/applications/${s}`, lastModified: now, changeFrequency: "monthly" as const, priority: 0.6 })),
     ...uniqueSlugs(journalArticles).map((s) => ({ url: `${BASE}/journal/${s}`, lastModified: now, changeFrequency: "monthly" as const, priority: 0.5 })),
     ...uniqueSlugs(caseStudies).map((s) => ({ url: `${BASE}/case-studies/${s}`, lastModified: now, changeFrequency: "monthly" as const, priority: 0.6 })),
+    ...uniqueSlugs(serviceAreas).map((s) => ({ url: `${BASE}/service-areas/${s}`, lastModified: now, changeFrequency: "monthly" as const, priority: 0.7 })),
   ];
 
   return [...staticRoutes, ...dynamic];

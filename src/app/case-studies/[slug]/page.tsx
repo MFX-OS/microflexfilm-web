@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import BreadcrumbsJsonLd from "@/components/BreadcrumbsJsonLd";
 import { caseStudies } from "@/data/caseStudies";
 
 export function generateStaticParams() {
@@ -36,6 +37,11 @@ export default async function CaseStudyPage({ params }: { params: Promise<{ slug
   return (
     <>
       <Header />
+      <BreadcrumbsJsonLd items={[
+        { name: "Home", url: "https://microflexfilm.com" },
+        { name: "Case Studies", url: "https://microflexfilm.com/case-studies" },
+        { name: c.title, url: `https://microflexfilm.com/case-studies/${c.slug}` },
+      ]} />
       <main id="top">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
         <section className="grid-backdrop relative py-14 md:py-20">

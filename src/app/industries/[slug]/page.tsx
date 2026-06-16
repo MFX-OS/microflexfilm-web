@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import GuidePage from "@/components/GuidePage";
+import BreadcrumbsJsonLd from "@/components/BreadcrumbsJsonLd";
 import { industryPages, getIndustryPage } from "@/data/industryPages";
 
 export function generateStaticParams() {
@@ -41,6 +42,11 @@ export default async function IndustryRoute({
   return (
     <>
       <Header />
+      <BreadcrumbsJsonLd items={[
+        { name: "Home", url: "https://microflexfilm.com" },
+        { name: "Industries", url: "https://microflexfilm.com/industries" },
+        { name: p.title, url: `https://microflexfilm.com/industries/${p.slug}` },
+      ]} />
       <GuidePage page={p} related={related} relatedTitle="Explore more industries" basePath="/industries" />
       <Footer />
     </>

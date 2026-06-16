@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import BreadcrumbsJsonLd from "@/components/BreadcrumbsJsonLd";
 import { capabilities, getCapability } from "@/data/capabilities";
 import {
   PouchBlueprint,
@@ -60,6 +61,11 @@ export default async function CapabilityPage({
   return (
     <>
       <Header />
+      <BreadcrumbsJsonLd items={[
+        { name: "Home", url: "https://microflexfilm.com" },
+        { name: "Capabilities", url: "https://microflexfilm.com/capabilities" },
+        { name: cap.name, url: `https://microflexfilm.com/capabilities/${cap.slug}` },
+      ]} />
       <main id="top">
         {/* Hero */}
         <section className="grid-backdrop relative py-14 md:py-20">

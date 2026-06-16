@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import GuidePage from "@/components/GuidePage";
+import BreadcrumbsJsonLd from "@/components/BreadcrumbsJsonLd";
 import { applicationPages, getApplicationPage } from "@/data/applicationPages";
 
 export function generateStaticParams() {
@@ -41,6 +42,11 @@ export default async function ApplicationRoute({
   return (
     <>
       <Header />
+      <BreadcrumbsJsonLd items={[
+        { name: "Home", url: "https://microflexfilm.com" },
+        { name: "Applications", url: "https://microflexfilm.com/applications" },
+        { name: p.title, url: `https://microflexfilm.com/applications/${p.slug}` },
+      ]} />
       <GuidePage page={p} related={related} relatedTitle="Explore more applications" basePath="/applications" />
       <Footer />
     </>

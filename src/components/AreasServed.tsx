@@ -29,6 +29,14 @@ export default function AreasServed() {
             </span>
           ))}
         </div>
+        <p className="mt-6 text-sm text-muted">
+          Popular in Southern California:{" "}
+          <a href="/service-areas/coffee-packaging-southern-california" className="font-bold text-cyan underline">Coffee packaging</a>
+          {" · "}
+          <a href="/service-areas/supplement-packaging-southern-california" className="font-bold text-cyan underline">Supplement packaging</a>
+          {" · "}
+          <a href="/service-areas" className="font-bold text-cyan underline">All service areas</a>
+        </p>
       </div>
     </section>
   );
