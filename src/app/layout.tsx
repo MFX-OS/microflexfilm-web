@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
 import ConsentBanner from "@/components/ConsentBanner";
+import WebVitals from "@/components/WebVitals";
 import "./globals.css";
 
 const sans = Inter({
@@ -134,6 +135,7 @@ export default function RootLayout({
           </>
         )}
         <ConsentBanner clarityId={CLARITY_ID} />
+        <WebVitals />
 
         {TIDIO_ENABLED && (
           <Script

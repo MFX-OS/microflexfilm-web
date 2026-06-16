@@ -9,6 +9,7 @@ import Quality from "@/components/Quality";
 import Trust from "@/components/Trust";
 import SampleKit from "@/components/SampleKit";
 import Resources from "@/components/Resources";
+import LeadMagnet from "@/components/LeadMagnet";
 import ClientCenter from "@/components/ClientCenter";
 import QuoteForm from "@/components/QuoteForm";
 import ContactBlock from "@/components/ContactBlock";
@@ -29,6 +30,7 @@ export default function HomePage() {
         <Trust />
         <SampleKit />
         <Resources />
+        <LeadMagnet />
         <ClientCenter />
         <QuoteForm />
         <ContactBlock />

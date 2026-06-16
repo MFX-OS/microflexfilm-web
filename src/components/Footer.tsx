@@ -1,5 +1,6 @@
 import Logo from "./Logo";
 import Link from "next/link";
+import NewsletterSignup from "./NewsletterSignup";
 
 const cols = [
   {
@@ -55,6 +56,12 @@ export default function Footer() {
             <p className="mt-4 text-sm leading-relaxed text-muted">
               Flexible Packaging. Engineered to Perform.
             </p>
+            <div className="mt-5 max-w-xs">
+              <p className="mb-2 text-xs font-extrabold uppercase tracking-widest text-muted">
+                Packaging tips, occasionally
+              </p>
+              <NewsletterSignup />
+            </div>
           </div>
 
           {cols.map((c) => (

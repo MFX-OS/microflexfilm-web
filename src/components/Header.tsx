@@ -52,6 +52,7 @@ const groups: NavGroup[] = [
     label: "Resources",
     links: [
       { href: "/about", label: "About Microflex" },
+      { href: "/case-studies", label: "Case Studies" },
       { href: "/journal", label: "Packaging Journal" },
       { href: "/faq", label: "FAQs" },
       { href: "/calculators", label: "Packaging Calculators" },
