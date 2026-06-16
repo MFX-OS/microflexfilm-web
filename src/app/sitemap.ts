@@ -19,7 +19,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "", "/about", "/capabilities", "/industries", "/applications", "/journal",
     "/materials", "/printing", "/artwork-guidelines", "/calculators",
     "/packaging-spec-builder", "/configurator", "/faq", "/terms",
-    "/case-studies", "/accessibility", "/service-areas",
+    "/case-studies", "/accessibility", "/service-areas", "/glossary",
   ];
   const staticRoutes: MetadataRoute.Sitemap = staticPaths.map((p) => ({
     url: `${BASE}${p}`,
