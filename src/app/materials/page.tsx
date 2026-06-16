@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import MaterialExplorer from "@/components/MaterialExplorer";
+import ConfiguratorMount from "@/components/configurator/ConfiguratorMount";
 
 export const metadata: Metadata = {
   title: "Materials & Features | Finishes, Barriers & Structures",
@@ -129,6 +130,25 @@ export default function MaterialsPage() {
                 Feel Them Yourself — Sample Kit
               </a>
             </div>
+          </div>
+        </section>
+
+        <div className="container-x"><div className="hairline" /></div>
+
+        {/* 3D Packaging Studio */}
+        <section className="py-14 md:py-18">
+          <div className="container-x">
+            <div className="mb-8 max-w-3xl">
+              <div className="kicker mb-3">Build My Spec · 3D Studio</div>
+              <h2 className="display text-[clamp(30px,3.8vw,54px)] text-paper">
+                See your package before it&rsquo;s made.
+              </h2>
+              <p className="mt-4 text-lg leading-relaxed text-muted">
+                Choose a format, finish, color, and size, drop in your artwork, and spin a live
+                3D mockup — with an instant estimate. Lock the spec to start a quote.
+              </p>
+            </div>
+            <ConfiguratorMount />
           </div>
         </section>
 
