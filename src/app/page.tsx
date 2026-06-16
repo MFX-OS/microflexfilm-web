@@ -6,6 +6,7 @@ import StudioTeaser from "@/components/StudioTeaser";
 import Showcase from "@/components/Showcase";
 import Process from "@/components/Process";
 import Quality from "@/components/Quality";
+import Trust from "@/components/Trust";
 import SampleKit from "@/components/SampleKit";
 import Resources from "@/components/Resources";
 import ClientCenter from "@/components/ClientCenter";
@@ -25,6 +26,7 @@ export default function HomePage() {
         <Showcase />
         <Process />
         <Quality />
+        <Trust />
         <SampleKit />
         <Resources />
         <ClientCenter />
