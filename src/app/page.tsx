@@ -1,6 +1,7 @@
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import StartHere from "@/components/StartHere";
+import LeadFunnel from "@/components/LeadFunnel";
 import Capabilities from "@/components/Capabilities";
 import StudioTeaser from "@/components/StudioTeaser";
 import Showcase from "@/components/Showcase";
@@ -23,6 +24,7 @@ export default function HomePage() {
       <main id="top">
         <Hero />
         <StartHere />
+        <LeadFunnel />
         <Capabilities />
         <StudioTeaser />
         <Showcase />
