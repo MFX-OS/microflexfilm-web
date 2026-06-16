@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import FaqAccordion, { type Faq } from "@/components/FaqAccordion";
+import PackagingAssistant from "@/components/PackagingAssistant";
 
 export const metadata: Metadata = {
   title: "FAQs | Flexible Packaging Questions Answered",
@@ -91,6 +92,10 @@ export default function FaqPage() {
           <div className="container-x">
             <div className="mx-auto max-w-3xl">
               <FaqAccordion faqs={faqs} />
+            </div>
+
+            <div className="mx-auto mt-10 max-w-3xl">
+              <PackagingAssistant />
             </div>
 
             <div
