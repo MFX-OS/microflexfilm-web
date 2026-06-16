@@ -194,10 +194,11 @@ export default function PackageConfigurator() {
   const artTexture = useCallback((dataUrl: string | null, panelAspect: number, wrap: boolean): THREE.Texture => {
     const eng = engRef.current!;
     if (!dataUrl) { eng.defaultTex.colorSpace = THREE.SRGBColorSpace; return eng.defaultTex; }
-    const tex = eng.loader.load(dataUrl, (t) => {
+    const tex = eng.loader.load(dataUrl, (t: THREE.Texture) => {
       t.colorSpace = THREE.SRGBColorSpace;
-      if (!wrap && fitMode === "fill" && t.image) {
-        const ia = t.image.width / t.image.height;
+      const img = t.image as { width?: number; height?: number } | undefined;
+      if (!wrap && fitMode === "fill" && img && img.width && img.height) {
+        const ia = img.width / img.height;
         if (ia > panelAspect) { t.repeat.set(panelAspect / ia, 1); t.offset.set((1 - panelAspect / ia) / 2, 0); }
         else { t.repeat.set(1, ia / panelAspect); t.offset.set(0, (1 - ia / panelAspect) / 2); }
         t.needsUpdate = true;
@@ -299,7 +300,7 @@ export default function PackageConfigurator() {
     const { group, env } = eng;
     while (group.children.length) { const c = group.children.pop()!; const mesh = c as THREE.Mesh; if (mesh.geometry) mesh.geometry.dispose(); }
     const F = FORMATS[format];
-    const floor = eng.scene.getObjectByName("floor") as THREE.Mesh | null;
+    const floor = eng.scene.getObjectByName("floor") as THREE.Mesh | undefined;
     let Wmm = w, Hmm = h;
     let W = Wmm / 55, H = Hmm / 55;
 
