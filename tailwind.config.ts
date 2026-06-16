@@ -42,7 +42,7 @@ const config: Config = {
         muted: {
           DEFAULT: "#a9b9c8",
           light: "#bdd0dc",
-          dark: "#536575",
+          dark: "#6e8294",
         },
       },
       fontFamily: {

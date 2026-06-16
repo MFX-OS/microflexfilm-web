@@ -33,6 +33,22 @@ export default function QuoteForm() {
     setFormLoadedAtMs(Date.now());
   }, []);
 
+  // Pre-fill from a configuration locked in the 3D Studio (/configurator).
+  useEffect(() => {
+    let raw: string | null = null;
+    try { raw = sessionStorage.getItem("mfx_spec"); } catch { return; }
+    if (!raw) return;
+    try {
+      const s = JSON.parse(raw) as { format?: string; finish?: string; color?: string; w?: number; h?: number; units?: string };
+      const line = `From the 3D Studio — Format: ${s.format ?? "—"}; Finish: ${s.finish ?? "—"}; Color: ${s.color ?? "—"}; Size: ${s.w ?? "?"} × ${s.h ?? "?"} ${s.units ?? "mm"}.\n\n`;
+      const ta = document.querySelector('textarea[name="message"]') as HTMLTextAreaElement | null;
+      if (ta) ta.value = line + ta.value;
+      sessionStorage.removeItem("mfx_spec");
+    } catch {
+      /* ignore malformed spec */
+    }
+  }, []);
+
   function onFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     setFileError(null);

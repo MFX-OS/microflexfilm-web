@@ -1,34 +1,12 @@
 import Image from "next/image";
 import Logo from "./Logo";
+import HeroVideo from "./HeroVideo";
 
 export default function Hero() {
   return (
     <section className="hero relative isolate grid-backdrop py-14 md:py-20 lg:py-24">
-      {/* Muted autoplay background film */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <video
-          className="h-full w-full object-cover opacity-[0.55]"
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          poster="/video/hero-poster.jpg"
-        >
-          <source src="/video/hero-loop.mp4" type="video/mp4" />
-        </video>
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(100deg, rgba(2,5,9,0.95) 0%, rgba(2,5,9,0.82) 40%, rgba(2,5,9,0.5) 72%, rgba(2,5,9,0.28) 100%)",
-          }}
-        />
-        <div
-          className="absolute inset-x-0 bottom-0 h-32"
-          style={{ background: "linear-gradient(180deg, transparent, #020509)" }}
-        />
-      </div>
+      {/* Background film — gated to larger screens / non-data-saver */}
+      <HeroVideo />
       <div className="container-x">
         <div className="grid items-center gap-10 lg:gap-14 lg:grid-cols-[0.9fr_1.1fr]">
           <div>

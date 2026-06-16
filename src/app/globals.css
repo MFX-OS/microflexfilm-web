@@ -172,3 +172,34 @@
     margin-top: 0.85rem;
   }
 }
+
+/* Accessibility: visible keyboard focus, skip link, reduced motion */
+:focus-visible {
+  outline: 2px solid #00d8f2;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 200;
+  background: #00d8f2;
+  color: #001018;
+  font-weight: 800;
+  padding: 10px 16px;
+  border-radius: 0 0 10px 0;
+}
+.skip-link:focus {
+  left: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

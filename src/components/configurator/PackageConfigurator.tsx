@@ -58,7 +58,8 @@ function estimate(format: string, w: number, h: number, finish: string) {
     format === "roll" ? 25000 : ["stick", "sachet", "sleeve", "label"].includes(format) ? 10000 : 5000;
   const setup = 950; // plates/dies amortized
   const unit = perUnitMaterial + setup / moq;
-  return { moq, unit, total: unit * moq, lead: "~15 business days from proof approval" };
+  const unitLo = unit * 0.82, unitHi = unit * 1.28; // indicative band
+  return { moq, unitLo, unitHi, totalLo: unitLo * moq, totalHi: unitHi * moq, lead: "~15 business days from proof approval" };
 }
 
 /* ---------- capacity ---------- */
@@ -463,11 +464,11 @@ export default function PackageConfigurator() {
 
         {/* estimate + capacity */}
         <div className="mb-4 rounded-2xl p-3" style={{ border: "1px solid rgba(255,255,255,0.1)", background: "rgba(2,5,9,0.35)" }}>
-          <div className="flex justify-between text-[12px]"><span className="text-muted">Est. unit price</span><span className="font-bold text-paper">${est.unit.toFixed(3)}</span></div>
-          <div className="flex justify-between text-[12px]"><span className="text-muted">MOQ</span><span className="font-bold text-paper">{est.moq.toLocaleString()}</span></div>
-          <div className="flex justify-between text-[12px]"><span className="text-muted">Est. order total</span><span className="font-bold text-cyan">${Math.round(est.total).toLocaleString()}</span></div>
+          <div className="flex justify-between text-[12px]"><span className="text-muted">Indicative unit price</span><span className="font-bold text-paper">${est.unitLo.toFixed(2)}–${est.unitHi.toFixed(2)}</span></div>
+          <div className="flex justify-between text-[12px]"><span className="text-muted">Typical MOQ</span><span className="font-bold text-paper">{est.moq.toLocaleString()}</span></div>
+          <div className="flex justify-between text-[12px]"><span className="text-muted">Indicative total</span><span className="font-bold text-cyan">${Math.round(est.totalLo).toLocaleString()}–${Math.round(est.totalHi).toLocaleString()}</span></div>
           {cap && <div className="flex justify-between text-[12px]"><span className="text-muted">Capacity</span><span className="font-bold text-paper">~{cap.coffeeG} g coffee</span></div>}
-          <div className="mt-1 text-[10px] text-muted-dark">{est.lead} · estimate only</div>
+          <div className="mt-1 text-[10px] text-muted-dark">{est.lead} · indicative range — confirmed on quote</div>
         </div>
 
         <button type="button" onClick={lockSpec} className="block w-full rounded-full py-3 text-[13px] font-extrabold" style={{ background: "linear-gradient(135deg,#00d8f2,#00a8cf)", color: "#001018" }}>

@@ -230,6 +230,29 @@ function millis(v: unknown): number {
 
 function nowIso() { return new Date().toISOString(); }
 
+/** Lightweight per-user+action rate limit (Firestore). Fails open on infra
+ *  errors so legitimate users are never blocked by a hiccup. */
+async function rateLimit(uid: string, action: string, max: number, windowMs: number): Promise<boolean> {
+  const ref = adminDb.collection("_portalRateLimits").doc(`${uid}_${action}`);
+  try {
+    return await adminDb.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const now = Date.now();
+      const d = snap.data();
+      if (snap.exists && d && now - Number(d.windowStart ?? 0) < windowMs) {
+        if (Number(d.count ?? 0) >= max) return false;
+        tx.update(ref, { count: Number(d.count ?? 0) + 1 });
+      } else {
+        tx.set(ref, { windowStart: now, count: 1 });
+      }
+      return true;
+    });
+  } catch {
+    return true;
+  }
+}
+const RL = "Too many requests — please wait a moment and try again.";
+
 function num(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -591,6 +614,7 @@ export async function submitPO(
 ): Promise<{ ok: boolean; error?: string; soNum?: string }> {
   const user = await verifyUser(idToken);
 
+  if (!(await rateLimit(user.uid, "submitPO", 12, 60000))) return { ok: false, error: RL };
   if (!input.poNumber.trim() || !input.poSignature.trim()) {
     return { ok: false, error: "PO number and signature are required." };
   }
@@ -813,6 +837,7 @@ export async function sendQuoteMessage(
   text: string
 ): Promise<{ ok: boolean; error?: string }> {
   const user = await verifyUser(idToken);
+  if (!(await rateLimit(user.uid, "sendQuoteMessage", 20, 60000))) return { ok: false, error: RL };
   if (!text.trim()) return { ok: false, error: "Empty message." };
 
   const ref = adminDb.collection("quotes").doc(quoteId);
@@ -847,6 +872,7 @@ export async function submitQuoteRequest(
   input: { type: string; item?: string; message: string }
 ): Promise<{ ok: boolean; error?: string }> {
   const user = await verifyUser(idToken);
+  if (!(await rateLimit(user.uid, "submitQuoteRequest", 20, 60000))) return { ok: false, error: RL };
   if (!input.message.trim()) return { ok: false, error: "Please add a few details." };
 
   const ref = adminDb.collection("quotes").doc(quoteId);
@@ -890,6 +916,8 @@ export async function submitProfileChange(
   proposed: Partial<Record<ProfileField, string>>
 ): Promise<{ ok: boolean; error?: string }> {
   const user = await verifyUser(idToken);
+
+  if (!(await rateLimit(user.uid, "submitProfileChange", 10, 60000))) return { ok: false, error: RL };
 
   const custSnap = await adminDb
     .collection("customers").where("email", "==", user.email).limit(1).get()
