@@ -183,7 +183,7 @@ const SO_LABELS: Record<string, string> = {
   approved: "Approved",
   sent: "Awaiting Your Signature",
   production: "In Production",
-  shipped: "Shipped",
+  shipped: "In production — complete (awaiting QA & shipment)",
   delivered: "Delivered",
   invoiced: "Invoiced",
   fulfilled: "Fulfilled",
@@ -198,7 +198,7 @@ const PIPELINE: PipelineStage[] = [
   { key: "approved", label: "Order Approved" },
   { key: "artwork", label: "Artwork Approved" },
   { key: "production", label: "In Production" },
-  { key: "shipped", label: "Shipped / Complete" },
+  { key: "shipped", label: "Production Complete" },
 ];
 
 const SO_APPROVED = new Set(["approved", "sent", "production", "shipped", "delivered", "invoiced", "fulfilled", "closed"]);
