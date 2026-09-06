@@ -80,6 +80,13 @@ const nextConfig: NextConfig = {
       ...industryRedirects,
       { source: "/packaging-engineering-journal", destination: "/journal", permanent: true },
       { source: "/packaging-engineering-journal/:slug", destination: "/journal/:slug", permanent: true },
+      // b470docs (2026-09-06): every permanent QR printed on the 2026 controlled documents (FSQMS / MFX-OS) points at
+      // microflexfilm.com/<DOCUMENT_ID>. The document pages live in the MFX-OS hosting tree (os.microflexfilm.com/doc/);
+      // this is the permanent hop. IDs are never reused, so these two rules never change. Matching is case-insensitive
+      // (Next default); the /doc/ app resolves a lowercase id to the document. Nothing else on the marketing site
+      // starts with "FO-" or "MFX-". Register of IDs: MFX_2026_QR_Master_Register.xlsx (98 documents).
+      { source: "/:id(FO-[A-Za-z0-9-]+)", destination: "https://os.microflexfilm.com/doc/?id=:id", permanent: true },
+      { source: "/:id(MFX-[A-Za-z0-9-]+)", destination: "https://os.microflexfilm.com/doc/?id=:id", permanent: true },
     ];
   },
   images: {
